@@ -1,0 +1,6 @@
+{
+  "name": "ESTRADA — Healthcare Technology & Innovation Event Registration",
+  "description": "Enterprise event registration and participant management platform for ESTRADA Healthcare Technology & Innovation Summit with public registration, visitor QR e-tickets, check-in scanner, and admin dashboard.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
