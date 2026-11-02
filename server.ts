@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import apiRouter from './server/routes/api.ts';
 import { initDatabase } from './server/db.ts';
+import { renderTicketPage } from './server/ticketPage.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +20,11 @@ initDatabase();
 
 // Mount API routes
 app.use('/api', apiRouter);
+
+app.get('/tiket/:code', (req, res) => {
+  const page = renderTicketPage(req.params.code);
+  res.status(page.status).type('html').send(page.html);
+});
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {

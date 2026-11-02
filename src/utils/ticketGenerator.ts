@@ -2,16 +2,31 @@ import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
 import { Participant } from '../types.ts';
 
+export function ticketQrPayload(participant: Pick<Participant, 'qr_token' | 'reg_number' | 'full_name' | 'role_position' | 'institution_name' | 'city'>): string {
+  const token = participant.qr_token || participant.reg_number;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const link = origin ? `${origin}/tiket/${encodeURIComponent(token)}` : token;
+  return [
+    'ESTRADA 2026',
+    participant.reg_number,
+    `Nama: ${participant.full_name}`,
+    `Jabatan: ${participant.role_position}`,
+    `Instansi: ${participant.institution_name}`,
+    `Kota: ${participant.city}`,
+    link,
+  ].join('\n');
+}
+
 export async function generateQRCodeDataUrl(text: string): Promise<string> {
   try {
     return await QRCode.toDataURL(text, {
-      width: 400,
+      width: 480,
       margin: 2,
       color: {
-        dark: '#0f172a', // Deep slate navy
+        dark: '#0f172a',
         light: '#ffffff'
       },
-      errorCorrectionLevel: 'H'
+      errorCorrectionLevel: 'M'
     });
   } catch (err) {
     console.error('Failed to generate QR code:', err);
@@ -20,7 +35,7 @@ export async function generateQRCodeDataUrl(text: string): Promise<string> {
 }
 
 export async function downloadPdfTicket(participant: Participant) {
-  const qrDataUrl = await generateQRCodeDataUrl(participant.qr_token || participant.reg_number);
+  const qrDataUrl = await generateQRCodeDataUrl(ticketQrPayload(participant));
   
   const doc = new jsPDF({
     orientation: 'portrait',

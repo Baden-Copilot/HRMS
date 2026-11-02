@@ -8,7 +8,7 @@ import {
   Send
 } from 'lucide-react';
 import { Participant } from '../types.ts';
-import { generateQRCodeDataUrl, downloadPdfTicket } from '../utils/ticketGenerator.ts';
+import { generateQRCodeDataUrl, downloadPdfTicket, ticketQrPayload } from '../utils/ticketGenerator.ts';
 
 interface RegistrationSuccessModalProps {
   participant: Participant | null;
@@ -27,7 +27,7 @@ export const RegistrationSuccessModal: React.FC<RegistrationSuccessModalProps> =
 
   useEffect(() => {
     if (participant) {
-      generateQRCodeDataUrl(participant.qr_token || participant.reg_number).then(setQrCodeUrl);
+      generateQRCodeDataUrl(ticketQrPayload(participant)).then(setQrCodeUrl);
     }
   }, [participant]);
 

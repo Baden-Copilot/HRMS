@@ -2,13 +2,70 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
+  html, body, #root {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  fieldset,
+  #registration-form-section,
+  #registration-form-section form {
+    min-inline-size: 0;
+    max-width: 100%;
+  }
+
+  #topics-section label,
+  #registration-form-section label {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #topics-section label span,
+  #registration-form-section label span {
+    overflow-wrap: anywhere;
   }
   
   .font-mono, code, kbd, samp, pre {
     font-family: 'JetBrains Mono', monospace;
   }
+}
+
+.field {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 50px;
+  padding: 13px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 16px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.field:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .10);
+}
+
+.field::placeholder {
+  color: #94a3b8;
+}
+
+select.field {
+  appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
 }
 
 /* Custom scrollbars for clean enterprise UI */

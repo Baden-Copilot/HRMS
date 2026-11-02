@@ -1,13 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  User, 
-  CheckSquare, 
-  Square, 
-  ArrowRight, 
-  AlertCircle, 
-  ShieldCheck, 
-  Sparkles
-} from 'lucide-react';
+﻿import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { Participant, TechnologyTopic } from '../types.ts';
 
@@ -15,17 +6,46 @@ interface RegistrationFormProps {
   onSuccess: (participant: Participant, notificationInfo: any) => void;
 }
 
-const CITY_SUGGESTIONS = [
-  'DKI Jakarta',
-  'Surabaya',
+const CITIES = [
+  'Ambon',
+  'Balikpapan',
+  'Banda Aceh',
+  'Bandar Lampung',
   'Bandung',
-  'Medan',
-  'Semarang',
-  'Makassar',
+  'Banjarmasin',
+  'Batam',
+  'Bekasi',
+  'Bengkulu',
+  'Bogor',
+  'Cirebon',
   'Denpasar',
+  'Depok',
+  'DKI Jakarta',
+  'Gorontalo',
+  'Jambi',
+  'Jayapura',
+  'Kediri',
+  'Kendari',
+  'Kupang',
+  'Makassar',
+  'Malang',
+  'Manado',
+  'Mataram',
+  'Medan',
+  'Padang',
   'Palembang',
+  'Palu',
+  'Pekanbaru',
+  'Pontianak',
+  'Samarinda',
+  'Semarang',
+  'Serang',
+  'Solo',
+  'Surabaya',
+  'Tangerang',
+  'Tangerang Selatan',
+  'Tasikmalaya',
   'Yogyakarta',
-  'Malang'
 ];
 
 export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onSuccess }) => {
@@ -34,16 +54,19 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onSuccess })
 
   // Form State
   const [fullName, setFullName] = useState('');
-  const [rolePosition, setRolePosition] = useState<string>('Direktur / Wakil Manajemen Rumah Sakit');
+  const [rolePosition, setRolePosition] = useState('');
   const [institutionName, setInstitutionName] = useState('');
   const [phoneWa, setPhoneWa] = useState('');
   const [email, setEmail] = useState('');
   const [city, setCity] = useState('');
+  const [cityCustom, setCityCustom] = useState('');
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
-  const [pdpConsent, setPdpConsent] = useState(true);
+  const [pdpConsent, setPdpConsent] = useState(false);
   const [honeypot, setHoneypot] = useState('');
+  const resolvedCity = (city === '__other__' ? cityCustom : city).trim();
 
   // UI States
+  const [step, setStep] = useState<1 | 2>(1);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -66,42 +89,39 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onSuccess })
     );
   };
 
-  const handleSelectAllTopics = () => {
-    if (selectedTopics.length === topics.length) {
-      setSelectedTopics([]);
-    } else {
-      setSelectedTopics(topics.map(t => t.code));
-    }
+  const profileError = () => {
+    if (!fullName.trim()) return 'Nama Lengkap wajib diisi.';
+    if (!rolePosition) return 'Jabatan / Posisi wajib dipilih.';
+    if (!institutionName.trim()) return 'Nama RS / Instansi wajib diisi.';
+    if (phoneWa.replace(/\D/g, '').length < 9) return 'Nomor WhatsApp tidak valid.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Alamat email tidak valid.';
+    if (!resolvedCity) return 'Kota domisili wajib diisi.';
+    return '';
+  };
+
+  const goToStep = (next: 1 | 2) => {
+    setStep(next);
+    setErrorMessage(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
-    if (!fullName.trim()) {
-      setErrorMessage('Nama Lengkap wajib diisi.');
+    const profile = profileError();
+    if (profile) {
+      setStep(1);
+      setErrorMessage(profile);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
-    if (!rolePosition) {
-      setErrorMessage('Jabatan / Posisi wajib dipilih.');
+
+    if (step === 1) {
+      goToStep(2);
       return;
     }
-    if (!institutionName.trim()) {
-      setErrorMessage('Nama RS / Instansi wajib diisi.');
-      return;
-    }
-    if (!phoneWa.trim()) {
-      setErrorMessage('Nomor WhatsApp wajib diisi.');
-      return;
-    }
-    if (!email.trim() || !email.includes('@')) {
-      setErrorMessage('Email tidak valid.');
-      return;
-    }
-    if (!city.trim()) {
-      setErrorMessage('Kota domisili wajib diisi.');
-      return;
-    }
+
     if (!pdpConsent) {
       setErrorMessage('Persetujuan data pribadi wajib dicentang.');
       return;
@@ -119,7 +139,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onSuccess })
           institution_name: institutionName.trim(),
           phone_wa: phoneWa.trim(),
           email: email.trim(),
-          city: city.trim(),
+          city: resolvedCity,
           topics: selectedTopics,
           pdp_consent: pdpConsent ? 1 : 0,
           honeypot
@@ -144,252 +164,274 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onSuccess })
   };
 
   return (
-    <div id="registration-form-section" className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-      {/* Form Header: Simple & Direct */}
-      <div className="bg-slate-900 text-white p-5 sm:p-6 border-b border-slate-800">
-        <h2 className="text-xl font-black text-white tracking-tight">
-          FORMULIR REGISTRASI PESERTA
-        </h2>
-        <p className="text-slate-400 text-xs mt-0.5">
-          ESTRADA Healthcare Technology & Innovation 2026
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="p-5 sm:p-7 space-y-6">
-        {errorMessage && (
-          <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 flex items-start gap-2.5 text-xs text-rose-800">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <p className="font-semibold">{errorMessage}</p>
+    <div id="registration-form-section" className="w-full min-w-0">
+      <header className="bg-[#102C45] text-white rounded-2xl p-5 sm:p-8 shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center text-[#102C45] shrink-0">
+            <span className="text-xl font-bold">E</span>
           </div>
-        )}
+          <div className="min-w-0">
+            <h2 className="font-bold tracking-[3px] text-lg">ESTRADA</h2>
+            <p className="text-[10px] text-blue-200 tracking-wider">HEALTHCARE TECHNOLOGY</p>
+          </div>
+        </div>
+        <div className="mt-7">
+          <span className="text-xs text-blue-200 tracking-widest">EVENT REGISTRATION</span>
+          <h1 className="text-2xl sm:text-3xl font-bold mt-2">Registrasi Peserta</h1>
+          <p className="text-sm text-blue-100 mt-3 leading-relaxed break-words">
+            Silakan lengkapi data diri dan informasi instansi Anda untuk mengikuti acara Estrada.
+          </p>
+        </div>
+        <div className="mt-6">
+          <div className="flex gap-1.5">
+            {[1, 2].map((n) => (
+              <div
+                key={n}
+                className={`h-1 flex-1 rounded-full ${n <= step ? 'bg-blue-300' : 'bg-white/25'}`}
+              />
+            ))}
+          </div>
+          <p className="text-[11px] text-blue-200 mt-2 tracking-wide">Langkah {step} dari 2</p>
+        </div>
+      </header>
 
-        {/* Hidden Anti-Spam */}
-        <input 
-          type="text" 
-          name="website_secondary" 
-          value={honeypot} 
-          onChange={e => setHoneypot(e.target.value)} 
-          className="hidden" 
-          tabIndex={-1} 
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm mt-4 p-4 sm:p-8 space-y-8">
+        <input
+          type="text"
+          name="website_secondary"
+          value={honeypot}
+          onChange={e => setHoneypot(e.target.value)}
+          className="hidden"
+          tabIndex={-1}
+          autoComplete="off"
         />
 
-        {/* SECTION A: IDENTITAS */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
-            <User className="w-4 h-4 text-sky-700" />
-            <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
-              Data Identitas Peserta
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* 1. Nama Lengkap */}
-            <div className="md:col-span-2">
-              <label className="flex items-center gap-1.5 text-xs font-black text-slate-900 uppercase tracking-wide mb-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
-                <span>Nama Lengkap & Gelar</span>
-                <span className="text-rose-600">*</span>
-              </label>
+        {step === 1 && (
+        <section className="space-y-5">
+          <SectionTitle
+            number="01"
+            title="Informasi Peserta"
+            description="Lengkapi identitas dan informasi kontak Anda."
+          />
+          <div className="space-y-4">
+            <InputField label="Nama Lengkap" required>
               <input
-                type="text"
                 required
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
-                placeholder="dr. Nama Lengkap, Sp.A / Nama Lengkap, S.Kom"
-                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-600"
+                placeholder="Contoh: dr. Budi Santoso, M.Kes."
+                autoComplete="name"
+                className="field"
               />
-            </div>
+            </InputField>
 
-            {/* 2. Jabatan */}
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-black text-slate-900 uppercase tracking-wide mb-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
-                <span>Jabatan / Posisi</span>
-                <span className="text-rose-600">*</span>
-              </label>
+            <InputField label="Jabatan / Posisi" required>
               <select
+                required
                 value={rolePosition}
                 onChange={e => setRolePosition(e.target.value)}
-                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-600"
+                className="field"
               >
+                <option value="">Pilih jabatan / posisi</option>
                 <option value="Direktur / Wakil Manajemen Rumah Sakit">Direktur / Wakil Manajemen Rumah Sakit</option>
                 <option value="Mitra Telkom">Mitra Telkom</option>
                 <option value="Narasumber">Narasumber</option>
               </select>
-            </div>
+            </InputField>
 
-            {/* 3. Instansi */}
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-black text-slate-900 uppercase tracking-wide mb-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
-                <span>Nama Rumah Sakit / Instansi</span>
-                <span className="text-rose-600">*</span>
-              </label>
+            <InputField label="Nama Rumah Sakit / Perusahaan / Instansi" required>
               <input
-                type="text"
                 required
                 value={institutionName}
                 onChange={e => setInstitutionName(e.target.value)}
-                placeholder="Contoh: RSUP Dr. Sardjito / PT Telkom"
-                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-600"
+                placeholder="Masukkan nama instansi"
+                autoComplete="organization"
+                className="field"
               />
+            </InputField>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <InputField label="Nomor WhatsApp Aktif" required>
+                <input
+                  required
+                  type="tel"
+                  inputMode="tel"
+                  value={phoneWa}
+                  onChange={e => setPhoneWa(e.target.value)}
+                  placeholder="081234567890"
+                  autoComplete="tel"
+                  className="field"
+                />
+              </InputField>
+              <InputField label="Kota / Domisili Instansi" required>
+                <select
+                  required
+                  value={city}
+                  onChange={e => setCity(e.target.value)}
+                  className="field"
+                >
+                  <option value="">Pilih kota / domisili</option>
+                  {CITIES.map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                  <option value="__other__">Lainnya</option>
+                </select>
+              </InputField>
             </div>
 
-            {/* 4. WhatsApp */}
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-black text-slate-900 uppercase tracking-wide mb-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
-                <span>Nomor WhatsApp Aktif</span>
-                <span className="text-rose-600">*</span>
-              </label>
+            {city === '__other__' && (
+              <InputField label="Nama Kota" required>
+                <input
+                  required
+                  value={cityCustom}
+                  onChange={e => setCityCustom(e.target.value)}
+                  placeholder="Tulis nama kota"
+                  className="field"
+                />
+              </InputField>
+            )}
+
+            <InputField label="Alamat Email Aktif" required>
               <input
-                type="tel"
                 required
-                value={phoneWa}
-                onChange={e => setPhoneWa(e.target.value)}
-                placeholder="081234567890 (otomatis +62)"
-                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-600"
-              />
-            </div>
-
-            {/* 5. Email */}
-            <div>
-              <label className="flex items-center gap-1.5 text-xs font-black text-slate-900 uppercase tracking-wide mb-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
-                <span>Alamat Email Aktif</span>
-                <span className="text-rose-600">*</span>
-              </label>
-              <input
                 type="email"
-                required
+                inputMode="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="direksi@rumahsakit.co.id"
-                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-600"
+                placeholder="nama@email.com"
+                autoComplete="email"
+                className="field"
               />
-            </div>
-
-            {/* 6. Kota */}
-            <div className="md:col-span-2">
-              <label className="flex items-center gap-1.5 text-xs font-black text-slate-900 uppercase tracking-wide mb-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
-                <span>Kota Domisili Instansi</span>
-                <span className="text-rose-600">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                list="city-options"
-                value={city}
-                onChange={e => setCity(e.target.value)}
-                placeholder="Contoh: DKI Jakarta, Surabaya, Bandung, Medan"
-                className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-600"
-              />
-              <datalist id="city-options">
-                {CITY_SUGGESTIONS.map(c => <option key={c} value={c} />)}
-              </datalist>
-            </div>
+            </InputField>
           </div>
-        </div>
+        </section>
+        )}
 
-        {/* SECTION B: TOPIK TEKNOLOGI (Clean Compact Grid) */}
-        <div id="topics-section" className="space-y-3 pt-2">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-sky-700" />
-              <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                Topik Teknologi Pilihan (Opsional)
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                {selectedTopics.length} dipilih
-              </span>
-              <button
-                type="button"
-                onClick={handleSelectAllTopics}
-                className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 underline"
-              >
-                {selectedTopics.length === topics.length ? 'Batal' : 'Pilih Semua'}
-              </button>
-            </div>
+        {step === 2 && (
+        <>
+        <section id="topics-section" className="space-y-5 min-w-0">
+          <SectionTitle
+            number="02"
+            title="Minat Teknologi"
+            description="Pilih satu atau lebih topik yang menjadi perhatian Anda. Bagian ini opsional."
+          />
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-slate-700">Pilihan topik</span>
+            <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full shrink-0">
+              {selectedTopics.length} dipilih
+            </span>
           </div>
-
-          {loadingTopics ? (
-            <p className="text-xs text-slate-400 py-3 text-center">Memuat topik...</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {topics.map(topic => {
-                const isSelected = selectedTopics.includes(topic.code);
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {loadingTopics ? (
+              <p className="text-sm text-slate-500">Memuat topik...</p>
+            ) : (
+              topics.map((topic, index) => {
+                const active = selectedTopics.includes(topic.code);
                 return (
-                  <div
+                  <label
                     key={topic.code}
-                    onClick={() => toggleTopic(topic.code)}
-                    className={`cursor-pointer px-3 py-2 rounded-lg border text-left transition-colors flex items-center gap-2.5 select-none ${
-                      isSelected 
-                        ? 'bg-sky-50/80 border-sky-400 text-sky-950' 
-                        : 'bg-white border-slate-200 hover:border-slate-300 text-slate-800'
+                    className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer min-h-[68px] min-w-0 ${
+                      active
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="shrink-0 text-sky-700">
-                      {isSelected ? (
-                        <CheckSquare className="w-4 h-4 fill-sky-700 text-white" />
-                      ) : (
-                        <Square className="w-4 h-4 text-slate-400" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0 flex items-center justify-between gap-1.5">
-                      <span className="text-xs font-bold leading-tight truncate">
-                        <strong className="font-mono text-sky-800 mr-1.5">[{topic.code}]</strong>
-                        {topic.title}
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => toggleTopic(topic.code)}
+                      className="w-5 h-5 mt-0.5 shrink-0 accent-blue-700"
+                    />
+                    <span className="text-sm leading-relaxed text-slate-700 min-w-0 break-words">
+                      <span className="font-semibold text-slate-400 mr-1">
+                        {topic.code || String.fromCharCode(65 + index)}.
                       </span>
-                    </div>
-                  </div>
+                      {topic.title}
+                    </span>
+                  </label>
                 );
-              })}
-            </div>
-          )}
-        </div>
+              })
+            )}
+          </div>
+        </section>
 
-        {/* SECTION C: PERSETUJUAN PDP (Short & Clean) */}
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-          <label className="flex items-center gap-2.5 text-xs text-slate-700 cursor-pointer select-none">
+        <section className="space-y-4">
+          <label className="flex gap-3 items-start bg-slate-50 p-4 rounded-xl cursor-pointer min-w-0">
             <input
-              type="checkbox"
               required
+              type="checkbox"
               checked={pdpConsent}
               onChange={e => setPdpConsent(e.target.checked)}
-              className="w-4 h-4 text-sky-600 rounded border-slate-300 focus:ring-sky-500 shrink-0"
+              className="w-5 h-5 mt-0.5 shrink-0 accent-blue-700"
             />
-            <span className="font-medium leading-tight">
-              Saya menyetujui pemrosesan data pribadi untuk verifikasi dan penerbitan tiket resmi ESTRADA 2026 (UU PDP No. 27/2022).
+            <span className="text-sm leading-relaxed text-slate-600 min-w-0 break-words">
+              Saya menyetujui penggunaan data pribadi saya untuk keperluan administrasi dan komunikasi terkait kegiatan Estrada sesuai kebijakan privasi.
             </span>
           </label>
-        </div>
+        </section>
+        </>
+        )}
 
-        {/* SUBMIT BUTTON */}
-        <div className="pt-1 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Koneksi Aman TLS · Bebas Biaya</span>
-          </div>
+        {errorMessage && (
+          <div className="bg-red-50 text-red-700 rounded-xl p-4 text-sm">{errorMessage}</div>
+        )}
 
+        {step === 1 ? (
           <button
             type="submit"
-            disabled={submitting}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3 text-xs font-bold text-white bg-sky-700 hover:bg-sky-800 active:bg-sky-900 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+            className="w-full min-h-[54px] rounded-xl bg-[#102C45] hover:bg-[#193F60] active:scale-[0.99] text-white font-bold text-sm tracking-wide transition"
           >
-            {submitting ? (
-              <span>MEMPROSES...</span>
-            ) : (
-              <>
-                <span>DAFTAR SEKARANG</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
+            LANJUT →
           </button>
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-3">
+            <button
+              type="button"
+              onClick={() => goToStep(1)}
+              className="min-h-[54px] px-6 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm tracking-wide hover:bg-slate-50"
+            >
+              ← KEMBALI
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full min-h-[54px] rounded-xl bg-[#102C45] hover:bg-[#193F60] active:scale-[0.99] text-white font-bold text-sm tracking-wide transition disabled:opacity-50"
+            >
+              {submitting ? 'MENGIRIM...' : 'DAFTAR SEKARANG →'}
+            </button>
+          </div>
+        )}
+
+        <p className="text-center text-xs text-slate-400">
+          ESTRADA · Healthcare Technology & Innovation
+        </p>
       </form>
     </div>
   );
-};
+}
+
+function SectionTitle({ number, title, description }: { number: string; title: string; description: string }) {
+  return (
+    <div className="flex gap-3 items-start">
+      <div className="w-9 h-9 shrink-0 rounded-lg bg-blue-50 text-blue-800 flex items-center justify-center font-bold text-sm">
+        {number}
+      </div>
+      <div className="min-w-0">
+        <h2 className="font-bold text-lg text-slate-800">{title}</h2>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed break-words">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function InputField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2 min-w-0">
+      <label className="block text-sm font-semibold text-slate-700">
+        {label}
+        {required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}

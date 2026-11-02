@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db, generateNextRegNumber } from '../db.ts';
 import { normalizeIndonesianPhone, validateEmail, sanitizeText } from '../validation.ts';
+import { extractTicketCodes } from '../ticketPage.ts';
 
 const router = Router();
 
@@ -208,7 +209,7 @@ router.post('/register', (req: Request, res: Response): any => {
 // 3. GET /api/ticket/:query - Public ticket lookup (by registration number or phone)
 router.get('/ticket/:query', (req: Request, res: Response): any => {
   try {
-    const rawQuery = req.params.query.trim();
+    const rawQuery = extractTicketCodes(req.params.query.trim())[0] || req.params.query.trim();
 
     // Check phone normalization if it looks like a phone number
     let phoneNormalized = '';
@@ -710,8 +711,12 @@ router.post('/admin/check-in', (req: Request, res: Response): any => {
     }
 
     const cleanCode = code.trim();
+    const codes = extractTicketCodes(cleanCode).map((item) => item.toUpperCase());
+    if (codes.length === 0) {
+      return res.status(400).json({ success: false, error: 'Kode QR atau Nomor Registrasi tidak valid' });
+    }
+    const marks = codes.map(() => '?').join(', ');
 
-    // Query by QR token or Registration Number
     const reg = db.prepare(`
       SELECT 
         p.id as participant_id,
@@ -727,10 +732,9 @@ router.post('/admin/check-in', (req: Request, res: Response): any => {
         er.check_in_time
       FROM event_registrations er
       JOIN participants p ON p.id = er.participant_id
-      WHERE UPPER(er.qr_token) = UPPER(?) 
-         OR UPPER(p.reg_number) = UPPER(?)
-         OR er.qr_token LIKE ?
-    `).get(cleanCode, cleanCode, `%${cleanCode}%`) as any;
+      WHERE UPPER(er.qr_token) IN (${marks})
+         OR UPPER(p.reg_number) IN (${marks})
+    `).get(...codes, ...codes) as any;
 
     if (!reg) {
       return res.status(404).json({

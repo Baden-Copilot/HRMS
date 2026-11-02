@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { X, Printer, Download, Sparkles, Building2, UserCheck, Shield } from 'lucide-react';
 import { Participant } from '../types.ts';
-import { generateQRCodeDataUrl } from '../utils/ticketGenerator.ts';
+import { generateQRCodeDataUrl, ticketQrPayload } from '../utils/ticketGenerator.ts';
 
 interface VisitorBadgeModalProps {
   participant: Participant | null;
@@ -14,7 +14,7 @@ export const VisitorBadgeModal: React.FC<VisitorBadgeModalProps> = ({ participan
 
   useEffect(() => {
     if (participant) {
-      generateQRCodeDataUrl(participant.qr_token || participant.reg_number).then(setQrUrl);
+      generateQRCodeDataUrl(ticketQrPayload(participant)).then(setQrUrl);
     }
   }, [participant]);
 
@@ -118,8 +118,8 @@ export const VisitorBadgeModal: React.FC<VisitorBadgeModalProps> = ({ participan
                 <span className="font-mono text-xs font-bold text-slate-800 tracking-wider">
                   {participant.reg_number}
                 </span>
-                <span className="block text-[9px] text-slate-500 uppercase tracking-widest">
-                  QR PASS MASUK VENUE
+                <span className="block text-[9px] text-slate-500">
+                  Scan untuk melihat data peserta
                 </span>
               </div>
             </div>

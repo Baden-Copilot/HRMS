@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, X, QrCode, AlertCircle, Download, Printer, User, Building2, MapPin, CheckCircle2 } from 'lucide-react';
 import { Participant } from '../types.ts';
-import { generateQRCodeDataUrl, downloadPdfTicket } from '../utils/ticketGenerator.ts';
+import { generateQRCodeDataUrl, downloadPdfTicket, ticketQrPayload } from '../utils/ticketGenerator.ts';
 
 interface TicketLookupModalProps {
   onClose: () => void;
@@ -35,7 +35,7 @@ export const TicketLookupModal: React.FC<TicketLookupModalProps> = ({ onClose, o
       }
 
       setParticipant(data.participant);
-      const q = await generateQRCodeDataUrl(data.participant.qr_token || data.participant.reg_number);
+      const q = await generateQRCodeDataUrl(ticketQrPayload(data.participant));
       setQrUrl(q);
     } catch (err) {
       console.error('Lookup error:', err);
