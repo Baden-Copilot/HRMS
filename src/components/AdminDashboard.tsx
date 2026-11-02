@@ -32,12 +32,16 @@ import {
   Activity,
   Check,
   ShieldCheck,
+  Settings,
   ArrowLeft,
   CheckCircle2,
   Filter
 } from 'lucide-react';
 import { Participant, DashboardStats, RegistrationStatus, TechnologyTopic, InterestSegment } from '../types.ts';
 import { exportParticipantsToExcel, exportParticipantsToCsv, exportParticipantsToPdfReport } from '../utils/exportUtils.ts';
+import { ticketPageUrl } from '../utils/ticketGenerator.ts';
+import { useBrand } from '../brand.ts';
+import { BrandSettings } from './BrandSettings.tsx';
 
 interface AdminDashboardProps {
   onOpenBadge: (p: Participant) => void;
@@ -46,6 +50,7 @@ interface AdminDashboardProps {
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onExit }) => {
   // Auth state
+  const brand = useBrand();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [adminUsername, setAdminUsername] = useState('admin');
   const [adminPassword, setAdminPassword] = useState('estrada2026');
@@ -53,7 +58,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'participants' | 'checkin' | 'topics' | 'segmentation' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'participants' | 'checkin' | 'topics' | 'segmentation' | 'audit' | 'settings'>('overview');
 
   // Stats & Data
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -410,7 +415,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
   const hadirCount = stats?.statuses.find(s => s.status === 'Hadir')?.count || 0;
 
   interface MenuItem {
-    id: 'overview' | 'participants' | 'checkin' | 'topics' | 'segmentation' | 'audit';
+    id: 'overview' | 'participants' | 'checkin' | 'topics' | 'segmentation' | 'audit' | 'settings';
     label: string;
     icon: any;
     badge?: number;
@@ -422,7 +427,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
     { id: 'checkin', label: 'Check-In QR', icon: QrCode },
     { id: 'topics', label: 'Master Topik', icon: Sparkles, badge: adminTopics.length },
     { id: 'segmentation', label: 'Segmentasi Minat', icon: Layers, badge: segments.length },
-    { id: 'audit', label: 'Audit Log', icon: Clock }
+    { id: 'audit', label: 'Audit Log', icon: Clock },
+    { id: 'settings', label: 'Pengaturan', icon: Settings }
   ];
 
   return (
@@ -435,8 +441,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
           {/* Top Branding Section */}
           <div className="relative z-10 p-5 space-y-6">
             <div className="text-center pt-2">
-              <div className="w-12 h-12 rounded-full bg-white text-[#4A3B73] flex items-center justify-center font-black text-xl mx-auto shadow-lg">
-                <span className="tracking-tighter">E</span>
+              <div className="w-12 h-12 rounded-full bg-white text-[#4A3B73] overflow-hidden flex items-center justify-center font-black text-xl mx-auto shadow-lg">
+                {brand.icon_url ? (
+                  <img src={brand.icon_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="tracking-tighter">E</span>
+                )}
               </div>
               <h2 className="text-base font-extrabold text-white tracking-wide mt-3">ESTRADA</h2>
               <p className="text-[10px] text-purple-200/80 font-medium uppercase tracking-widest">Healthcare 2026</p>
@@ -545,6 +555,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                   {activeTab === 'topics' && 'Konfigurasi Master Topik Pilihan'}
                   {activeTab === 'segmentation' && 'Konfigurasi Master Segmentasi Minat'}
                   {activeTab === 'audit' && 'Log Audit Aktivitas Sistem'}
+                  {activeTab === 'settings' && 'Ganti ikon dan gambar acara'}
                 </p>
               </div>
             </div>
@@ -812,7 +823,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-600 leading-relaxed">
-                            <strong className="text-slate-800">{p.full_name}</strong> ({p.role_position.includes('Direktur') ? 'Direktur RS' : p.role_position.includes('Mitra') ? 'Mitra Telkom' : 'Narasumber'}) terdaftar resmi dengan kode <span className="font-mono font-bold text-[#4A3B73]">{p.reg_number}</span>.
+                            <TicketLink person={p} className="font-bold text-slate-800 hover:underline">{p.full_name}</TicketLink> ({p.role_position.includes('Direktur') ? 'Direktur RS' : p.role_position.includes('Mitra') ? 'Mitra Telkom' : 'Narasumber'}) terdaftar resmi dengan kode <TicketLink person={p} className="font-mono font-bold text-[#4A3B73] hover:underline">{p.reg_number}</TicketLink>.
                           </p>
                           <div className="flex items-center justify-between pt-0.5">
                             <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
@@ -1218,10 +1229,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                       participants.map(p => (
                         <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-2.5 px-3.5 font-mono font-bold text-[#4A3B73] whitespace-nowrap">
-                            {p.reg_number}
+                            <TicketLink person={p} className="hover:underline">{p.reg_number}</TicketLink>
                           </td>
                           <td className="py-2.5 px-3.5 font-bold text-slate-900 max-w-[190px] truncate" title={p.full_name}>
-                            {p.full_name}
+                            <TicketLink person={p} className="hover:underline">{p.full_name}</TicketLink>
                           </td>
                           <td className="py-2.5 px-3.5 text-slate-700 max-w-[180px] truncate" title={p.institution_name}>
                             {p.institution_name}
@@ -1349,9 +1360,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                     <p className="font-extrabold text-sm">{scanResult.message}</p>
                     {scanResult.participant && (
                       <div className="mt-2 pt-2 border-t border-current/20 space-y-0.5">
-                        <p className="font-bold text-xs">{scanResult.participant.full_name}</p>
+                        <p className="font-bold text-xs">
+                          <TicketLink person={scanResult.participant} className="hover:underline">{scanResult.participant.full_name}</TicketLink>
+                        </p>
                         <p className="text-[11px] opacity-80">{scanResult.participant.institution_name} · {scanResult.participant.role_position}</p>
                         <p className="font-mono text-[11px] opacity-80">No. Reg: {scanResult.participant.reg_number}</p>
+                        <a href={ticketHref(scanResult.participant)} target="_blank" rel="noopener noreferrer" className="block pt-1 text-[11px] underline break-all">
+                          {ticketHref(scanResult.participant)}
+                        </a>
                       </div>
                     )}
                   </div>
@@ -1370,9 +1386,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                     recentCheckIns.map((item, idx) => (
                       <div key={idx} className="p-3 bg-[#F4F5FA] rounded-xl border border-slate-100 text-xs flex justify-between items-center">
                         <div>
-                          <p className="font-bold text-slate-900">{item.full_name}</p>
+                          <p className="font-bold text-slate-900">
+                            <TicketLink person={item} className="hover:underline">{item.full_name}</TicketLink>
+                          </p>
                           <p className="text-[11px] text-slate-500">{item.institution_name}</p>
-                          <span className="font-mono text-[10px] text-slate-400">{item.reg_number}</span>
+                          <TicketLink person={item} className="font-mono text-[10px] text-sky-700 hover:underline break-all">{ticketHref(item)}</TicketLink>
                         </div>
                         <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                           Hadir Gate
@@ -1583,6 +1601,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
             </div>
           )}
 
+          {activeTab === 'settings' && <BrandSettings />}
+
           {/* TAB 6: AUDIT LOG */}
           {activeTab === 'audit' && (
             <div className="bg-white rounded-2xl shadow-xs border border-slate-200/70 p-5 space-y-4">
@@ -1612,7 +1632,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-4">
             <div className="flex justify-between items-center border-b pb-2">
-              <span className="font-mono font-bold text-[#4A3B73] text-sm">{selectedParticipant.reg_number}</span>
+              <TicketLink person={selectedParticipant} className="font-mono font-bold text-[#4A3B73] text-sm hover:underline">{selectedParticipant.reg_number}</TicketLink>
               <button onClick={() => setIsViewingDetail(false)} className="text-slate-400 hover:text-slate-700">✕</button>
             </div>
             <div className="space-y-2 text-xs">
@@ -1623,6 +1643,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
               <p><strong>Email:</strong> {selectedParticipant.email}</p>
               <p><strong>Kota:</strong> {selectedParticipant.city}</p>
               <p><strong>Status:</strong> {selectedParticipant.status}</p>
+              <p>
+                <strong>URL tiket:</strong>{' '}
+                <a href={ticketHref(selectedParticipant)} target="_blank" rel="noopener noreferrer" className="text-sky-700 break-all hover:underline">
+                  {ticketHref(selectedParticipant)}
+                </a>
+              </p>
             </div>
             <div className="flex justify-end gap-2 pt-3 border-t">
               <button
@@ -2109,7 +2135,9 @@ function EditModal({ participant, topics, onClose, onSaved }: any) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
       <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4 border border-slate-200">
         <div className="flex justify-between items-center border-b pb-2">
-          <span className="font-bold text-sm text-slate-900">Edit Peserta: {participant.reg_number}</span>
+          <span className="font-bold text-sm text-slate-900">
+            Edit Peserta: <TicketLink person={participant} className="text-[#4A3B73] hover:underline">{participant.reg_number}</TicketLink>
+          </span>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
@@ -2182,5 +2210,28 @@ function EditModal({ participant, topics, onClose, onSaved }: any) {
         </form>
       </div>
     </div>
+  );
+}
+
+function ticketHref(person: { qr_token?: string | null; reg_number: string }) {
+  return ticketPageUrl({
+    qr_token: person.qr_token || person.reg_number,
+    reg_number: person.reg_number,
+  });
+}
+
+function TicketLink({
+  person,
+  className,
+  children,
+}: {
+  person: { qr_token?: string | null; reg_number: string };
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <a href={ticketHref(person)} target="_blank" rel="noopener noreferrer" className={className}>
+      {children}
+    </a>
   );
 }

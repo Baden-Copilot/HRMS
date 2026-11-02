@@ -8,7 +8,7 @@ import {
   Send
 } from 'lucide-react';
 import { Participant } from '../types.ts';
-import { generateQRCodeDataUrl, downloadPdfTicket, ticketQrPayload } from '../utils/ticketGenerator.ts';
+import { generateQRCodeDataUrl, downloadPdfTicket, ticketPageUrl, ticketQrPayload } from '../utils/ticketGenerator.ts';
 
 interface RegistrationSuccessModalProps {
   participant: Participant | null;
@@ -33,6 +33,8 @@ export const RegistrationSuccessModal: React.FC<RegistrationSuccessModalProps> =
 
   if (!participant) return null;
 
+  const pageUrl = ticketPageUrl(participant);
+
   const handleDownloadTicket = async () => {
     try {
       setDownloadingPdf(true);
@@ -51,7 +53,8 @@ export const RegistrationSuccessModal: React.FC<RegistrationSuccessModalProps> =
     `No. Registrasi: *${participant.reg_number}*\n` +
     `Instansi: ${participant.institution_name}\n` +
     `Jabatan: ${participant.role_position}\n` +
-    `Status: Terdaftar\n\n` +
+    `Status: Terdaftar\n` +
+    `Tiket: ${pageUrl}\n\n` +
     `Tunjukkan pesan ini & QR Code pada pintu masuk acara.`
   );
   const waUrl = `https://wa.me/${waClean}?text=${waMessage}`;
@@ -126,6 +129,14 @@ export const RegistrationSuccessModal: React.FC<RegistrationSuccessModalProps> =
                   {participant.status || 'Terdaftar'}
                 </span>
               </div>
+              <a
+                href={pageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block pt-1 text-[11px] leading-snug text-sky-700 break-all"
+              >
+                {pageUrl}
+              </a>
             </div>
           </div>
 

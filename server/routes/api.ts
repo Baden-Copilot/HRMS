@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db, generateNextRegNumber } from '../db.ts';
 import { normalizeIndonesianPhone, validateEmail, sanitizeText } from '../validation.ts';
 import { extractTicketCodes } from '../ticketPage.ts';
+import { clearBrand, publicBrand, saveBrand } from '../brand.ts';
 
 const router = Router();
 
@@ -783,6 +784,7 @@ router.post('/admin/check-in', (req: Request, res: Response): any => {
         role_position: reg.role_position,
         institution_name: reg.institution_name,
         city: reg.city,
+        qr_token: reg.qr_token,
         status: 'Hadir',
         check_in_time: reg.check_in_time || new Date().toISOString()
       }
@@ -1162,6 +1164,33 @@ router.delete('/admin/segments/:id', (req: Request, res: Response): any => {
   } catch (error) {
     console.error('Delete segment error:', error);
     res.status(500).json({ success: false, error: 'Gagal menghapus segmentasi' });
+  }
+});
+
+router.get('/brand', (_req: Request, res: Response) => {
+  res.json({ success: true, ...publicBrand() });
+});
+
+router.post('/admin/brand', (req: Request, res: Response): any => {
+  try {
+    const { kind, data_url } = req.body || {};
+    const brand = saveBrand(String(kind || ''), String(data_url || ''));
+    db.prepare(`
+      INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
+      VALUES ('UPDATE_BRAND', 'SETTINGS', ?, 'admin', ?)
+    `).run(String(kind), kind === 'icon' ? 'Ikon diganti' : 'Gambar diganti');
+    res.json({ success: true, ...brand });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Gagal menyimpan gambar.' });
+  }
+});
+
+router.delete('/admin/brand/:kind', (req: Request, res: Response): any => {
+  try {
+    const brand = clearBrand(req.params.kind);
+    res.json({ success: true, ...brand });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Gagal menghapus gambar.' });
   }
 });
 

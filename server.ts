@@ -4,12 +4,16 @@ import { fileURLToPath } from 'url';
 import apiRouter from './server/routes/api.ts';
 import { initDatabase } from './server/db.ts';
 import { renderTicketPage } from './server/ticketPage.ts';
+import { brandFile } from './server/brand.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const isProduction = process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start';
+const PORT = process.env.PORT
+  ? parseInt(process.env.PORT, 10)
+  : (isProduction ? 4005 : 3000);
 
 // Body parsers
 app.use(express.json({ limit: '10mb' }));
@@ -20,6 +24,15 @@ initDatabase();
 
 // Mount API routes
 app.use('/api', apiRouter);
+
+app.get('/brand/:kind', (req, res) => {
+  const asset = brandFile(req.params.kind);
+  if (!asset) {
+    res.status(404).end();
+    return;
+  }
+  res.type(asset.type).sendFile(asset.file);
+});
 
 app.get('/tiket/:code', (req, res) => {
   const page = renderTicketPage(req.params.code);
@@ -32,7 +45,6 @@ app.get('/api/health', (_req, res) => {
 });
 
 async function startServer() {
-  const isProduction = process.env.NODE_ENV === 'production';
 
   if (!isProduction) {
     // Mount Vite dev server in middleware mode

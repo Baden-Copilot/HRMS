@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { X, Printer, Download, Sparkles, Building2, UserCheck, Shield } from 'lucide-react';
 import { Participant } from '../types.ts';
-import { generateQRCodeDataUrl, ticketQrPayload } from '../utils/ticketGenerator.ts';
+import { generateQRCodeDataUrl, ticketPageUrl, ticketQrPayload } from '../utils/ticketGenerator.ts';
 
 interface VisitorBadgeModalProps {
   participant: Participant | null;
@@ -121,6 +121,12 @@ export const VisitorBadgeModal: React.FC<VisitorBadgeModalProps> = ({ participan
                 <span className="block text-[9px] text-slate-500">
                   Scan untuk melihat data peserta
                 </span>
+                <a
+                  href={ticketPageUrl(participant)}
+                  className="block max-w-[280px] text-[8px] leading-snug text-sky-700 break-all"
+                >
+                  {ticketPageUrl(participant)}
+                </a>
               </div>
             </div>
 

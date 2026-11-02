@@ -2,19 +2,15 @@ import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
 import { Participant } from '../types.ts';
 
-export function ticketQrPayload(participant: Pick<Participant, 'qr_token' | 'reg_number' | 'full_name' | 'role_position' | 'institution_name' | 'city'>): string {
+export function ticketPageUrl(participant: Pick<Participant, 'qr_token' | 'reg_number'>): string {
   const token = participant.qr_token || participant.reg_number;
+  const path = `/tiket/${encodeURIComponent(token)}`;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const link = origin ? `${origin}/tiket/${encodeURIComponent(token)}` : token;
-  return [
-    'ESTRADA 2026',
-    participant.reg_number,
-    `Nama: ${participant.full_name}`,
-    `Jabatan: ${participant.role_position}`,
-    `Instansi: ${participant.institution_name}`,
-    `Kota: ${participant.city}`,
-    link,
-  ].join('\n');
+  return origin ? `${origin}${path}` : path;
+}
+
+export function ticketQrPayload(participant: Pick<Participant, 'qr_token' | 'reg_number'>): string {
+  return ticketPageUrl(participant);
 }
 
 export async function generateQRCodeDataUrl(text: string): Promise<string> {
@@ -35,7 +31,8 @@ export async function generateQRCodeDataUrl(text: string): Promise<string> {
 }
 
 export async function downloadPdfTicket(participant: Participant) {
-  const qrDataUrl = await generateQRCodeDataUrl(ticketQrPayload(participant));
+  const pageUrl = ticketPageUrl(participant);
+  const qrDataUrl = await generateQRCodeDataUrl(pageUrl);
   
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -89,13 +86,13 @@ export async function downloadPdfTicket(participant: Participant) {
     doc.addImage(qrDataUrl, 'PNG', qrX, 78, qrSize, qrSize);
   }
 
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Tunjukkan QR Code ini kepada petugas saat memasuki venue acara', pageWidth / 2, 134, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(14, 116, 144);
+  const urlLines = doc.splitTextToSize(pageUrl, pageWidth - 16);
+  doc.text(urlLines, pageWidth / 2, 134, { align: 'center' });
 
-  // Participant Details Box
-  const startY = 140;
+  const startY = 136 + urlLines.length * 3.4;
   doc.setDrawColor(203, 213, 225);
   doc.setFillColor(255, 255, 255);
   doc.roundedRect(15, startY, pageWidth - 30, 50, 2, 2, 'FD');
@@ -146,20 +143,21 @@ export async function downloadPdfTicket(participant: Participant) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(15, 23, 42);
-  doc.text('JADWAL & LOKASI KEGIATAN:', 15, 196);
+  const footerY = startY + 58;
+  doc.text('JADWAL & LOKASI KEGIATAN:', 15, footerY);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  doc.text('Grand Ballroom, Jakarta Convention Center (JCC) Senayan, Jakarta', 15, 201);
-  doc.text('Pukul 08.30 - 16.30 WIB | Registrasi Ulang & Check-in dibuka mulai pukul 07.45 WIB', 15, 205);
+  doc.text('Grand Ballroom, Jakarta Convention Center (JCC) Senayan, Jakarta', 15, footerY + 5);
+  doc.text('Pukul 08.30 - 16.30 WIB | Registrasi Ulang & Check-in dibuka mulai pukul 07.45 WIB', 15, footerY + 9);
 
   doc.save(`ESTRADA-E-Ticket-${participant.reg_number}.pdf`);
 }
 
 export function generateCalendarIcs(participant: Participant) {
   const title = 'ESTRADA 2026 - Healthcare Technology & Innovation Summit';
-  const description = `E-Ticket Resmi: ${participant.reg_number}\\nNama: ${participant.full_name}\\nInstansi: ${participant.institution_name}\\nHarap tunjukkan QR Pass Anda saat check-in di venue.`;
+  const description = `E-Ticket Resmi: ${participant.reg_number}\\nNama: ${participant.full_name}\\nInstansi: ${participant.institution_name}\\nTiket: ${ticketPageUrl(participant)}\\nHarap tunjukkan QR Pass Anda saat check-in di venue.`;
   const location = 'Grand Ballroom, Jakarta Convention Center (JCC), Senayan, DKI Jakarta';
   const startTime = '20261115T013000Z'; // 08:30 WIB
   const endTime = '20261115T093000Z';   // 16:30 WIB

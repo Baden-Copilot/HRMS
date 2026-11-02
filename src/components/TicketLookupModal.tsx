@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, X, QrCode, AlertCircle, Download, Printer, User, Building2, MapPin, CheckCircle2 } from 'lucide-react';
 import { Participant } from '../types.ts';
-import { generateQRCodeDataUrl, downloadPdfTicket, ticketQrPayload } from '../utils/ticketGenerator.ts';
+import { generateQRCodeDataUrl, downloadPdfTicket, ticketPageUrl, ticketQrPayload } from '../utils/ticketGenerator.ts';
 
 interface TicketLookupModalProps {
   onClose: () => void;
@@ -116,6 +116,14 @@ export const TicketLookupModal: React.FC<TicketLookupModalProps> = ({ onClose, o
                   <span className="text-[10px] font-mono font-bold text-slate-500 block mt-1">
                     QR PASS PENGUNJUNG
                   </span>
+                  <a
+                    href={ticketPageUrl(participant)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block max-w-[9rem] text-[10px] leading-snug text-sky-700 break-all mt-1"
+                  >
+                    {ticketPageUrl(participant)}
+                  </a>
                 </div>
 
                 <div className="flex-1 space-y-1.5 text-center sm:text-left">

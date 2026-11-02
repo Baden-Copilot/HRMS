@@ -126,6 +126,14 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_logs(created_at);
   `);
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   // 8. Interest Segments table (Master Segmentasi Minat)
   db.exec(`
     CREATE TABLE IF NOT EXISTS interest_segments (
