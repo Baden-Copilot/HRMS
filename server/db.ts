@@ -88,6 +88,17 @@ export interface InterestSegment {
   updated_at: string;
 }
 
+export interface EventSchedule {
+  id: number;
+  event_date: string;
+  start_time: string;
+  end_time: string;
+  venue: string;
+  active: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Store {
   users: User[];
   participants: Participant[];
@@ -98,6 +109,7 @@ export interface Store {
   audit_logs: AuditLog[];
   app_settings: AppSetting[];
   interest_segments: InterestSegment[];
+  event_schedules: EventSchedule[];
 }
 
 const dbDir = path.resolve(process.cwd(), 'data');
@@ -120,6 +132,10 @@ export function nextId(rows: { id: number }[]): number {
 
 export function data(): Store {
   return store;
+}
+
+export function activeEvent(): EventSchedule | null {
+  return store.event_schedules.find((row) => row.active === 1) || null;
 }
 
 export function mutate<T>(fn: (db: Store) => T): T {
@@ -152,6 +168,10 @@ export function initDatabase() {
   }
   if (store.interest_segments.length === 0) {
     seedSegments();
+    changed = true;
+  }
+  if (store.event_schedules.length === 0) {
+    seedEvents();
     changed = true;
   }
   if (!store.users.some((user) => user.username === 'admin')) {
@@ -254,6 +274,7 @@ function emptyStore(): Store {
     audit_logs: [],
     app_settings: [],
     interest_segments: [],
+    event_schedules: [],
   };
 }
 
@@ -271,6 +292,20 @@ function persist() {
   fs.writeFileSync(tmpFile, JSON.stringify(store, null, 2), 'utf8');
   fs.rmSync(dbFile, { force: true });
   fs.renameSync(tmpFile, dbFile);
+}
+
+function seedEvents() {
+  const created = stamp();
+  store.event_schedules.push({
+    id: 1,
+    event_date: '2026-11-15',
+    start_time: '08:30',
+    end_time: '16:30',
+    venue: 'Grand Ballroom JCC Senayan',
+    active: 1,
+    created_at: created,
+    updated_at: created,
+  });
 }
 
 function seedSegments() {

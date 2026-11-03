@@ -2,7 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { X, Printer, Download, Sparkles, Building2, UserCheck, Shield } from 'lucide-react';
 import { Participant } from '../types.ts';
 import { generateQRCodeDataUrl, ticketPageUrl, ticketQrPayload } from '../utils/ticketGenerator.ts';
-import { formatRegisteredAt } from '../utils/datetime.ts';
+import { formatRegisteredAt, formatEventLine } from '../utils/datetime.ts';
+import { useActiveEvent } from '../eventSchedule.ts';
 
 interface VisitorBadgeModalProps {
   participant: Participant | null;
@@ -10,6 +11,7 @@ interface VisitorBadgeModalProps {
 }
 
 export const VisitorBadgeModal: React.FC<VisitorBadgeModalProps> = ({ participant, onClose }) => {
+  const event = useActiveEvent();
   const [qrUrl, setQrUrl] = useState<string>('');
   const badgeRef = useRef<HTMLDivElement>(null);
 
@@ -133,7 +135,7 @@ export const VisitorBadgeModal: React.FC<VisitorBadgeModalProps> = ({ participan
 
             {/* Badge Footer */}
             <div className="px-5 py-2.5 bg-slate-900 text-white text-center text-[10px]">
-              <span className="text-slate-300">Jakarta Convention Center · 15 Nov 2026</span>
+              {event && <span className="text-slate-300">{formatEventLine(event)}</span>}
             </div>
           </div>
         </div>

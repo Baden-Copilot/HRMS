@@ -1,6 +1,6 @@
-import { data } from './db.ts';
+import { activeEvent, data } from './db.ts';
 import { publicBrand } from './brand.ts';
-import { formatRegisteredAt } from '../src/utils/datetime.ts';
+import { formatEventDate, formatEventTime, formatRegisteredAt } from '../src/utils/datetime.ts';
 
 export function extractTicketCodes(raw: string): string[] {
   const text = raw.trim();
@@ -68,6 +68,7 @@ export function renderTicketPage(rawCode: string) {
           ['Kode', rawCode],
         ],
         status: '',
+        schedule: null,
         ...publicBrand(),
       })),
     };
@@ -84,6 +85,7 @@ export function renderTicketPage(rawCode: string) {
     rows.push(['Check-in', new Date(ticket.check_in_time).toLocaleString('id-ID')]);
   }
 
+  const event = activeEvent();
   return {
     status: 200,
     html: pageShell(ticket.full_name, ticketCard({
@@ -91,6 +93,11 @@ export function renderTicketPage(rawCode: string) {
       reg: ticket.reg_number,
       rows,
       status,
+      schedule: event ? {
+        date: formatEventDate(event.event_date),
+        time: formatEventTime(event.start_time, event.end_time),
+        place: event.venue,
+      } : null,
       ...publicBrand(),
     })),
   };
@@ -103,6 +110,7 @@ function ticketCard({
   status,
   icon_url,
   image_url,
+  schedule,
 }: {
   name: string;
   reg: string;
@@ -110,6 +118,7 @@ function ticketCard({
   status: string;
   icon_url: string | null;
   image_url: string | null;
+  schedule: { date: string; time: string; place: string } | null;
 }) {
   const fields = rows.map(([label, value]) => `
     <div>
@@ -145,13 +154,13 @@ function ticketCard({
         ${stamp}
       </dl>
       <div class="cut" aria-hidden="true"><span></span></div>
-      <footer>
+      ${schedule ? `<footer>
         <div class="when">
-          <p><span>Tanggal</span><strong>15 November 2026</strong></p>
-          <p><span>Waktu</span><strong>08.30–16.30 WIB</strong></p>
+          <p><span>Tanggal</span><strong>${esc(schedule.date)}</strong></p>
+          <p><span>Waktu</span><strong>${esc(schedule.time)}</strong></p>
         </div>
-        <p class="place">Grand Ballroom, Jakarta Convention Center</p>
-      </footer>
+        <p class="place">${esc(schedule.place)}</p>
+      </footer>` : ''}
     </article>
   `;
 }

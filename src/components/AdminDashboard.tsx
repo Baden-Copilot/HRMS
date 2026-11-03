@@ -45,9 +45,9 @@ import { ticketPageUrl } from '../utils/ticketGenerator.ts';
 import { useBrand } from '../brand.ts';
 import { BrandSettings } from './BrandSettings.tsx';
 import { RegistrationQrCard } from './RegistrationQrCard.tsx';
-import { formatRegisteredAt } from '../utils/datetime.ts';
-
-const EVENT_DATE = '2026-11-15';
+import { formatRegisteredAt, formatEventLine } from '../utils/datetime.ts';
+import { useActiveEvent } from '../eventSchedule.ts';
+import { EventMaster } from './EventMaster.tsx';
 
 function dateKeyFromValue(value: string | null | undefined): string {
   const key = String(value || '').slice(0, 10);
@@ -101,7 +101,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'participants' | 'checkin' | 'topics' | 'segmentation' | 'audit' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'participants' | 'checkin' | 'topics' | 'events' | 'segmentation' | 'audit' | 'settings'>('overview');
+  const activeSchedule = useActiveEvent();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
   const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
@@ -501,7 +502,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
   };
 
   interface MenuItem {
-    id: 'overview' | 'participants' | 'checkin' | 'topics' | 'segmentation' | 'audit' | 'settings';
+    id: 'overview' | 'participants' | 'checkin' | 'topics' | 'events' | 'segmentation' | 'audit' | 'settings';
     label: string;
     icon: any;
     badge?: number;
@@ -512,6 +513,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
     { id: 'participants', label: 'Peserta', icon: Users, badge: participants.length },
     { id: 'checkin', label: 'Check-In QR', icon: QrCode },
     { id: 'topics', label: 'Master Topik', icon: Sparkles, badge: adminTopics.length },
+    { id: 'events', label: 'Master Acara', icon: CalendarIcon },
     { id: 'segmentation', label: 'Segmentasi Minat', icon: Layers, badge: segments.length },
     { id: 'audit', label: 'Audit Log', icon: Clock },
     { id: 'settings', label: 'Pengaturan', icon: Settings }
@@ -660,6 +662,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                   {activeTab === 'topics' && 'Konfigurasi Master Topik Pilihan'}
                   {activeTab === 'segmentation' && 'Konfigurasi Master Segmentasi Minat'}
                   {activeTab === 'audit' && 'Log Audit Aktivitas Sistem'}
+                  {activeTab === 'events' && 'Tanggal, jam, dan lokasi acara yang tampil di QR'}
                   {activeTab === 'settings' && 'Ganti ikon dan gambar acara'}
                 </p>
               </div>
@@ -848,13 +851,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
 
                       const key = dateKey(calendarYear, calendarMonth, day);
                       const regCount = registrationCountByDate.get(key) || 0;
-                      const isEventDay = key === EVENT_DATE;
+                      const isEventDay = Boolean(activeSchedule && key === activeSchedule.event_date);
                       const isToday = key === todayKey;
                       const isSelected = key === selectedDate;
                       const label = String(day).padStart(2, '0');
                       const title = [
                         formatIdDate(key, true),
-                        isEventDay ? 'Hari H Estrada, Grand Ballroom JCC Senayan' : '',
+                        isEventDay && activeSchedule ? `Hari H Estrada, ${formatEventLine(activeSchedule)}` : '',
                         regCount ? `${regCount} peserta terdaftar` : ''
                       ].filter(Boolean).join('. ');
 
@@ -888,8 +891,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                     <div className="flex items-center gap-1.5 text-slate-600 font-medium min-w-0">
                       <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
                       <span className="truncate">
-                        {visibleMonthKey === '2026-11'
-                          ? '15 Nov 2026: Grand Ballroom JCC Senayan'
+                        {activeSchedule && visibleMonthKey === activeSchedule.event_date.slice(0, 7)
+                          ? formatEventLine(activeSchedule)
                           : 'Klik tanggal untuk melihat pendaftaran'}
                       </span>
                     </div>
@@ -1732,6 +1735,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
               </div>
             </div>
           )}
+
+          {activeTab === 'events' && <EventMaster />}
 
           {activeTab === 'settings' && <BrandSettings />}
 

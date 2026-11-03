@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Copy, Download, Printer, RotateCcw, X } from 'lucide-react';
 import { useBrand } from '../brand.ts';
+import { useActiveEvent } from '../eventSchedule.ts';
+import { formatEventDate, formatEventLine, formatEventTime } from '../utils/datetime.ts';
 import { generateQRCodeDataUrl } from '../utils/ticketGenerator.ts';
 
 const STORAGE_KEY = 'estrada_registration_url';
@@ -89,6 +91,7 @@ interface RegistrationQrCardProps {
 
 export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose }) => {
   const brand = useBrand();
+  const event = useActiveEvent();
   const [url, setUrl] = useState(readStoredUrl);
   const [qrUrl, setQrUrl] = useState('');
   const [copied, setCopied] = useState(false);
@@ -153,7 +156,7 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
       if (!measure) return;
       measure.font = '500 22px "Plus Jakarta Sans", sans-serif';
       const urlLines = wrapCanvasText(measure, trimmed, width - 96);
-      const height = headerH + bannerH + 148 + qrSize + 28 + urlLines.length * 28 + 132;
+      const height = headerH + bannerH + 148 + qrSize + 28 + urlLines.length * 28 + (event ? 132 : 36);
 
       const canvas = document.createElement('canvas');
       const scale = 2;
@@ -229,20 +232,22 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
         y += 28;
       }
 
-      y += 16;
-      ctx.fillStyle = '#64748b';
-      ctx.font = '700 15px "Plus Jakarta Sans", sans-serif';
-      ctx.fillText('TANGGAL', width * 0.28, y);
-      ctx.fillText('WAKTU', width * 0.72, y);
-      y += 28;
-      ctx.fillStyle = '#102033';
-      ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
-      ctx.fillText('15 November 2026', width * 0.28, y);
-      ctx.fillText('08.30–16.30 WIB', width * 0.72, y);
-      y += 40;
-      ctx.fillStyle = '#334155';
-      ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
-      ctx.fillText('Grand Ballroom, Jakarta Convention Center', width / 2, y);
+      if (event) {
+        y += 16;
+        ctx.fillStyle = '#64748b';
+        ctx.font = '700 15px "Plus Jakarta Sans", sans-serif';
+        ctx.fillText('TANGGAL', width * 0.28, y);
+        ctx.fillText('WAKTU', width * 0.72, y);
+        y += 28;
+        ctx.fillStyle = '#102033';
+        ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
+        ctx.fillText(formatEventDate(event.event_date), width * 0.28, y);
+        ctx.fillText(formatEventTime(event.start_time, event.end_time), width * 0.72, y);
+        y += 40;
+        ctx.fillStyle = '#334155';
+        ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
+        ctx.fillText(event.venue, width / 2, y);
+      }
 
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
@@ -366,13 +371,13 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
         <img src="${qrUrl}" alt="QR registrasi Estrada">
       </div>
       <p class="url">${escapeHtml(trimmed)}</p>
-      <footer>
+      ${event ? `<footer>
         <div class="when">
-          <p><span>Tanggal</span><strong>15 November 2026</strong></p>
-          <p><span>Waktu</span><strong>08.30–16.30 WIB</strong></p>
+          <p><span>Tanggal</span><strong>${escapeHtml(formatEventDate(event.event_date))}</strong></p>
+          <p><span>Waktu</span><strong>${escapeHtml(formatEventTime(event.start_time, event.end_time))}</strong></p>
         </div>
-        <p class="place">Grand Ballroom, Jakarta Convention Center</p>
-      </footer>
+        <p class="place">${escapeHtml(event.venue)}</p>
+      </footer>` : ''}
     </article>
   </main>
 </body>
@@ -422,6 +427,7 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
         <div className="mt-5">
           <span className="text-[11px] text-blue-200 tracking-widest">EVENT REGISTRATION</span>
           <h1 className="text-xl font-bold mt-1">Registrasi Peserta</h1>
+          {event && <p className="text-[13px] text-blue-100 mt-2 leading-snug">{formatEventLine(event)}</p>}
         </div>
       </header>
 

@@ -1,7 +1,8 @@
 import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
 import { Participant } from '../types.ts';
-import { formatRegisteredAt } from './datetime.ts';
+import { formatEventDate, formatEventTime, formatRegisteredAt } from './datetime.ts';
+import { loadActiveEvent } from '../eventSchedule.ts';
 
 export function ticketPageUrl(participant: Pick<Participant, 'qr_token' | 'reg_number'>): string {
   const token = participant.qr_token || participant.reg_number;
@@ -32,6 +33,7 @@ export async function generateQRCodeDataUrl(text: string): Promise<string> {
 }
 
 export async function downloadPdfTicket(participant: Participant) {
+  const event = await loadActiveEvent();
   const pageUrl = ticketPageUrl(participant);
   const qrDataUrl = await generateQRCodeDataUrl(pageUrl);
   
@@ -157,18 +159,30 @@ export async function downloadPdfTicket(participant: Participant) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(71, 85, 105);
-  doc.text('Grand Ballroom, Jakarta Convention Center (JCC) Senayan, Jakarta', 15, footerY + 5);
-  doc.text('Pukul 08.30 - 16.30 WIB | Registrasi Ulang & Check-in dibuka mulai pukul 07.45 WIB', 15, footerY + 9);
+  if (event) {
+    doc.text(`${formatEventDate(event.event_date)} · ${formatEventTime(event.start_time, event.end_time)}`, 15, footerY + 5);
+    doc.text(event.venue, 15, footerY + 9);
+  }
 
   doc.save(`ESTRADA-E-Ticket-${participant.reg_number}.pdf`);
 }
 
-export function generateCalendarIcs(participant: Participant) {
+function eventUtcStamp(date: string, time: string): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hour - 7, minute, 0))
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
+}
+
+export async function generateCalendarIcs(participant: Participant) {
+  const event = await loadActiveEvent();
   const title = 'ESTRADA 2026 - Healthcare Technology & Innovation Summit';
   const description = `E-Ticket Resmi: ${participant.reg_number}\\nNama: ${participant.full_name}\\nInstansi: ${participant.institution_name}\\nWaktu registrasi: ${formatRegisteredAt(participant.created_at)}\\nTiket: ${ticketPageUrl(participant)}\\nHarap tunjukkan QR Pass Anda saat check-in di venue.`;
-  const location = 'Grand Ballroom, Jakarta Convention Center (JCC), Senayan, DKI Jakarta';
-  const startTime = '20261115T013000Z'; // 08:30 WIB
-  const endTime = '20261115T093000Z';   // 16:30 WIB
+  const location = event?.venue || '';
+  const startTime = event ? eventUtcStamp(event.event_date, event.start_time) : '';
+  const endTime = event ? eventUtcStamp(event.event_date, event.end_time) : '';
 
   const icsContent = [
     'BEGIN:VCALENDAR',

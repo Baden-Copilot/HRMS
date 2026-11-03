@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import {
+  activeEvent,
   data,
   dateOnly,
   generateNextRegNumber,
@@ -1005,6 +1006,126 @@ router.delete('/admin/segments/:id', (req: Request, res: Response): any => {
   } catch (error) {
     console.error('Delete segment error:', error);
     res.status(500).json({ success: false, error: 'Gagal menghapus segmentasi' });
+  }
+});
+
+function readEventBody(body: any) {
+  const event_date = String(body?.event_date || '').trim();
+  const start_time = String(body?.start_time || '').trim().slice(0, 5);
+  const end_time = String(body?.end_time || '').trim().slice(0, 5);
+  const venue = String(body?.venue || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(event_date)) {
+    return { error: 'Tanggal acara tidak valid.' };
+  }
+  if (!/^\d{2}:\d{2}$/.test(start_time) || !/^\d{2}:\d{2}$/.test(end_time)) {
+    return { error: 'Jam mulai dan jam selesai wajib diisi.' };
+  }
+  if (end_time <= start_time) {
+    return { error: 'Jam selesai harus setelah jam mulai.' };
+  }
+  if (!venue) return { error: 'Lokasi wajib diisi.' };
+  return { event_date, start_time, end_time, venue };
+}
+
+router.get('/event', (_req: Request, res: Response) => {
+  const event = activeEvent();
+  res.json({
+    success: true,
+    event: event ? {
+      id: event.id,
+      event_date: event.event_date,
+      start_time: event.start_time,
+      end_time: event.end_time,
+      venue: event.venue,
+    } : null,
+  });
+});
+
+router.get('/admin/events', (_req: Request, res: Response) => {
+  const events = [...data().event_schedules].sort((a, b) => a.event_date.localeCompare(b.event_date) || a.start_time.localeCompare(b.start_time));
+  res.json({ success: true, events });
+});
+
+router.post('/admin/events', (req: Request, res: Response): any => {
+  try {
+    const parsed = readEventBody(req.body);
+    if ('error' in parsed) return res.status(400).json({ success: false, error: parsed.error });
+    const created = mutate((db) => {
+      const row = {
+        id: nextId(db.event_schedules),
+        ...parsed,
+        active: db.event_schedules.some((item) => item.active === 1) ? 0 : 1,
+        created_at: stamp(),
+        updated_at: stamp(),
+      };
+      db.event_schedules.push(row);
+      pushAudit(db, 'CREATE_EVENT', 'EVENT', String(row.id), 'admin', `Acara ${row.event_date} ${row.venue} ditambahkan`);
+      return row;
+    });
+    res.status(201).json({ success: true, event: created });
+  } catch (error) {
+    console.error('Create event error:', error);
+    res.status(500).json({ success: false, error: 'Gagal menyimpan acara.' });
+  }
+});
+
+router.put('/admin/events/:id', (req: Request, res: Response): any => {
+  try {
+    const id = Number(req.params.id);
+    const parsed = readEventBody(req.body);
+    if ('error' in parsed) return res.status(400).json({ success: false, error: parsed.error });
+    const updated = mutate((db) => {
+      const row = db.event_schedules.find((item) => item.id === id);
+      if (!row) return null;
+      Object.assign(row, parsed, { updated_at: stamp() });
+      pushAudit(db, 'UPDATE_EVENT', 'EVENT', String(id), 'admin', `Acara ${row.event_date} diperbarui`);
+      return row;
+    });
+    if (!updated) return res.status(404).json({ success: false, error: 'Acara tidak ditemukan.' });
+    res.json({ success: true, event: updated });
+  } catch (error) {
+    console.error('Update event error:', error);
+    res.status(500).json({ success: false, error: 'Gagal memperbarui acara.' });
+  }
+});
+
+router.patch('/admin/events/:id/active', (req: Request, res: Response): any => {
+  try {
+    const id = Number(req.params.id);
+    const updated = mutate((db) => {
+      const row = db.event_schedules.find((item) => item.id === id);
+      if (!row) return null;
+      const now = stamp();
+      for (const item of db.event_schedules) {
+        item.active = item.id === id ? 1 : 0;
+        item.updated_at = now;
+      }
+      pushAudit(db, 'ACTIVATE_EVENT', 'EVENT', String(id), 'admin', `Acara ${row.event_date} diaktifkan`);
+      return row;
+    });
+    if (!updated) return res.status(404).json({ success: false, error: 'Acara tidak ditemukan.' });
+    res.json({ success: true, event: updated });
+  } catch (error) {
+    console.error('Activate event error:', error);
+    res.status(500).json({ success: false, error: 'Gagal mengaktifkan acara.' });
+  }
+});
+
+router.delete('/admin/events/:id', (req: Request, res: Response): any => {
+  try {
+    const id = Number(req.params.id);
+    const removed = mutate((db) => {
+      const row = db.event_schedules.find((item) => item.id === id);
+      if (!row) return null;
+      db.event_schedules = db.event_schedules.filter((item) => item.id !== id);
+      pushAudit(db, 'DELETE_EVENT', 'EVENT', String(id), 'admin', `Acara ${row.event_date} dihapus`);
+      return row;
+    });
+    if (!removed) return res.status(404).json({ success: false, error: 'Acara tidak ditemukan.' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete event error:', error);
+    res.status(500).json({ success: false, error: 'Gagal menghapus acara.' });
   }
 });
 
