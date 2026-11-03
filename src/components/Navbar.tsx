@@ -1,20 +1,37 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronDown, QrCode, Ticket } from 'lucide-react';
 import { useBrand } from '../brand.ts';
 import { RegistrationQrModal } from './RegistrationQrCard.tsx';
 
 export type AppView = 'register' | 'admin';
 
 interface NavbarProps {
-  setActiveView: (view: AppView) => void;
   onOpenTicketLookup: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
-  setActiveView,
-  onOpenTicketLookup
-}) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenTicketLookup }) => {
   const brand = useBrand();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const closeOnOutside = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [menuOpen]);
 
   return (
     <header className="w-full bg-[#F3F6FA]">
@@ -25,25 +42,48 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
           Estrada
         </span>
-        <div className="flex items-center gap-3 sm:gap-4 text-sm shrink-0">
+        <div className="relative shrink-0" ref={menuRef}>
           <button
-            onClick={() => setQrOpen(true)}
-            className="text-slate-600 hover:text-slate-900"
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-xs hover:bg-slate-50"
           >
-            QR Daftar
+            Menu
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
           </button>
-          <button
-            onClick={onOpenTicketLookup}
-            className="text-slate-600 hover:text-slate-900"
-          >
-            Cek tiket
-          </button>
-          <button
-            onClick={() => setActiveView('admin')}
-            className="text-slate-400 hover:text-slate-700"
-          >
-            Admin
-          </button>
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-full mt-2 w-44 rounded-xl border border-slate-200 bg-white py-1 shadow-lg z-40"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setQrOpen(true);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 text-left"
+              >
+                <QrCode className="w-4 h-4 text-slate-400" />
+                QR Daftar
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onOpenTicketLookup();
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 text-left"
+              >
+                <Ticket className="w-4 h-4 text-slate-400" />
+                Cek tiket
+              </button>
+            </div>
+          )}
         </div>
       </div>
       {qrOpen && <RegistrationQrModal onClose={() => setQrOpen(false)} />}

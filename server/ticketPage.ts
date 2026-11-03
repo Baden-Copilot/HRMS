@@ -1,5 +1,6 @@
 import { data } from './db.ts';
 import { publicBrand } from './brand.ts';
+import { formatRegisteredAt } from '../src/utils/datetime.ts';
 
 export function extractTicketCodes(raw: string): string[] {
   const text = raw.trim();
@@ -40,6 +41,7 @@ export function findTicket(raw: string) {
       status: registration.status,
       qr_token: registration.qr_token,
       check_in_time: registration.check_in_time,
+      created_at: participant.created_at,
     };
   }
   return undefined;
@@ -76,6 +78,7 @@ export function renderTicketPage(rawCode: string) {
     ['Jabatan', ticket.role_position],
     ['Instansi', ticket.institution_name],
     ['Kota', ticket.city],
+    ['Waktu registrasi', formatRegisteredAt(ticket.created_at)],
   ];
   if (ticket.check_in_time) {
     rows.push(['Check-in', new Date(ticket.check_in_time).toLocaleString('id-ID')]);

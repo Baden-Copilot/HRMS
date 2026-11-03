@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Participant } from '../types.ts';
 import { generateQRCodeDataUrl, downloadPdfTicket, ticketPageUrl, ticketQrPayload } from '../utils/ticketGenerator.ts';
+import { formatRegisteredAt } from '../utils/datetime.ts';
 
 interface RegistrationSuccessModalProps {
   participant: Participant | null;
@@ -53,6 +54,7 @@ export const RegistrationSuccessModal: React.FC<RegistrationSuccessModalProps> =
     `No. Registrasi: *${participant.reg_number}*\n` +
     `Instansi: ${participant.institution_name}\n` +
     `Jabatan: ${participant.role_position}\n` +
+    `Waktu registrasi: ${formatRegisteredAt(participant.created_at)}\n` +
     `Status: Terdaftar\n` +
     `Tiket: ${pageUrl}\n\n` +
     `Tunjukkan pesan ini & QR Code pada pintu masuk acara.`
@@ -121,6 +123,9 @@ export const RegistrationSuccessModal: React.FC<RegistrationSuccessModalProps> =
                 </p>
                 <p className="text-[11px] text-slate-500">
                   {participant.role_position} · {participant.city}
+                </p>
+                <p className="text-[11px] font-mono text-slate-500">
+                  {formatRegisteredAt(participant.created_at)}
                 </p>
               </div>
 

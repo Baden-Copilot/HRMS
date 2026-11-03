@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
 import { Participant } from '../types.ts';
+import { formatRegisteredAt } from './datetime.ts';
 
 export function ticketPageUrl(participant: Pick<Participant, 'qr_token' | 'reg_number'>): string {
   const token = participant.qr_token || participant.reg_number;
@@ -81,21 +82,21 @@ export async function downloadPdfTicket(participant: Participant) {
 
   // QR Code in the middle
   if (qrDataUrl) {
-    const qrSize = 52;
+    const qrSize = 46;
     const qrX = (pageWidth - qrSize) / 2;
-    doc.addImage(qrDataUrl, 'PNG', qrX, 78, qrSize, qrSize);
+    doc.addImage(qrDataUrl, 'PNG', qrX, 76, qrSize, qrSize);
   }
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(14, 116, 144);
   const urlLines = doc.splitTextToSize(pageUrl, pageWidth - 16);
-  doc.text(urlLines, pageWidth / 2, 134, { align: 'center' });
+  doc.text(urlLines, pageWidth / 2, 126, { align: 'center' });
 
-  const startY = 136 + urlLines.length * 3.4;
+  const startY = 128 + urlLines.length * 3.4;
   doc.setDrawColor(203, 213, 225);
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(15, startY, pageWidth - 30, 50, 2, 2, 'FD');
+  doc.roundedRect(15, startY, pageWidth - 30, 58, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -139,11 +140,18 @@ export async function downloadPdfTicket(participant: Participant) {
   doc.setTextColor(16, 185, 129);
   doc.text(`: ${participant.status || 'Terdaftar'}`, 55, startY + 44);
 
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text('Waktu Registrasi', 20, startY + 51);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(`: ${formatRegisteredAt(participant.created_at)}`, 55, startY + 51);
+
   // Event Schedule & Venue Footer
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(15, 23, 42);
-  const footerY = startY + 58;
+  const footerY = startY + 66;
   doc.text('JADWAL & LOKASI KEGIATAN:', 15, footerY);
 
   doc.setFont('helvetica', 'normal');
@@ -157,7 +165,7 @@ export async function downloadPdfTicket(participant: Participant) {
 
 export function generateCalendarIcs(participant: Participant) {
   const title = 'ESTRADA 2026 - Healthcare Technology & Innovation Summit';
-  const description = `E-Ticket Resmi: ${participant.reg_number}\\nNama: ${participant.full_name}\\nInstansi: ${participant.institution_name}\\nTiket: ${ticketPageUrl(participant)}\\nHarap tunjukkan QR Pass Anda saat check-in di venue.`;
+  const description = `E-Ticket Resmi: ${participant.reg_number}\\nNama: ${participant.full_name}\\nInstansi: ${participant.institution_name}\\nWaktu registrasi: ${formatRegisteredAt(participant.created_at)}\\nTiket: ${ticketPageUrl(participant)}\\nHarap tunjukkan QR Pass Anda saat check-in di venue.`;
   const location = 'Grand Ballroom, Jakarta Convention Center (JCC), Senayan, DKI Jakarta';
   const startTime = '20261115T013000Z'; // 08:30 WIB
   const endTime = '20261115T093000Z';   // 16:30 WIB

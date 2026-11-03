@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import { Participant } from '../types.ts';
+import { formatRegisteredAt } from './datetime.ts';
 
 export function exportParticipantsToExcel(participants: Participant[], filename = 'ESTRADA_Daftar_Peserta_2026.xlsx') {
   const data = participants.map((p, idx) => ({
@@ -15,7 +16,7 @@ export function exportParticipantsToExcel(participants: Participant[], filename 
     'Status Registrasi': p.status,
     'Waktu Check-in': p.check_in_time || '-',
     'Topik Teknologi': p.topics?.map(t => `[${t.code}] ${t.title}`).join('; ') || '-',
-    'Tanggal Daftar': p.created_at
+    'Waktu Registrasi': formatRegisteredAt(p.created_at)
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(data);
@@ -58,7 +59,7 @@ export function exportParticipantsToCsv(participants: Participant[], filename = 
     p.status,
     p.check_in_time || '',
     p.topics?.map(t => `${t.code}`).join('|') || '',
-    p.created_at
+    formatRegisteredAt(p.created_at)
   ].map(escapeCsv).join(','));
 
   const csvContent = '\uFEFF' + [headers.map(escapeCsv).join(','), ...rows].join('\r\n');

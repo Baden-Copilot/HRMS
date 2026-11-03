@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Search, X, QrCode, AlertCircle, Download, Printer, User, Building2, MapPin, CheckCircle2 } from 'lucide-react';
 import { Participant } from '../types.ts';
 import { generateQRCodeDataUrl, downloadPdfTicket, ticketPageUrl, ticketQrPayload } from '../utils/ticketGenerator.ts';
+import { formatRegisteredAt } from '../utils/datetime.ts';
 
 interface TicketLookupModalProps {
   onClose: () => void;
@@ -135,6 +136,7 @@ export const TicketLookupModal: React.FC<TicketLookupModalProps> = ({ onClose, o
                     <p className="text-sm font-bold text-slate-900 leading-tight">{participant.full_name}</p>
                     <p className="text-xs text-slate-600 font-medium">{participant.institution_name}</p>
                     <p className="text-xs text-slate-500">{participant.role_position} · {participant.city}</p>
+                    <p className="text-[11px] font-mono text-slate-500">{formatRegisteredAt(participant.created_at)}</p>
                   </div>
                   <div className="pt-1 flex items-center justify-center sm:justify-start gap-2">
                     <span className="text-xs text-slate-500">Status:</span>

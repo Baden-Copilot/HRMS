@@ -35,7 +35,9 @@ import {
   Settings,
   ArrowLeft,
   CheckCircle2,
-  Filter
+  Filter,
+  PanelLeft,
+  PanelLeftClose
 } from 'lucide-react';
 import { Participant, DashboardStats, RegistrationStatus, TechnologyTopic, InterestSegment } from '../types.ts';
 import { exportParticipantsToExcel, exportParticipantsToCsv, exportParticipantsToPdfReport } from '../utils/exportUtils.ts';
@@ -43,6 +45,46 @@ import { ticketPageUrl } from '../utils/ticketGenerator.ts';
 import { useBrand } from '../brand.ts';
 import { BrandSettings } from './BrandSettings.tsx';
 import { RegistrationQrCard } from './RegistrationQrCard.tsx';
+import { formatRegisteredAt } from '../utils/datetime.ts';
+
+const EVENT_DATE = '2026-11-15';
+
+function dateKeyFromValue(value: string | null | undefined): string {
+  const key = String(value || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(key) ? key : '';
+}
+
+function dateKey(year: number, monthIndex: number, day: number): string {
+  return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function formatIdDate(key: string, withYear = false): string {
+  const [year, month, day] = key.split('-').map(Number);
+  if (!year || !month || !day) return key;
+  return new Date(year, month - 1, day).toLocaleDateString('id-ID', withYear
+    ? { day: 'numeric', month: 'long', year: 'numeric' }
+    : { day: '2-digit', month: 'short' });
+}
+
+function uniqueParticipants(list: Participant[]): Participant[] {
+  const seen = new Set<number>();
+  const unique: Participant[] = [];
+  for (const person of list) {
+    if (seen.has(person.id)) continue;
+    seen.add(person.id);
+    unique.push(person);
+  }
+  return unique;
+}
+
+function calendarCells(year: number, monthIndex: number): Array<number | null> {
+  const leading = new Date(year, monthIndex, 1).getDay();
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const cells: Array<number | null> = Array.from({ length: leading }, () => null);
+  for (let day = 1; day <= daysInMonth; day += 1) cells.push(day);
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
 
 interface AdminDashboardProps {
   onOpenBadge: (p: Participant) => void;
@@ -60,6 +102,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'participants' | 'checkin' | 'topics' | 'segmentation' | 'audit' | 'settings'>('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   // Stats & Data
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -431,6 +477,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
   const telkomCount = stats?.roles.find(r => r.role_position.includes('Mitra'))?.count || 0;
   const narsumCount = stats?.roles.find(r => r.role_position.includes('Narasumber'))?.count || 0;
   const hadirCount = stats?.statuses.find(s => s.status === 'Hadir')?.count || 0;
+  const overviewPeople = uniqueParticipants(participants);
+  const registrationCountByDate = new Map<string, number>();
+  for (const person of overviewPeople) {
+    const key = dateKeyFromValue(person.created_at);
+    if (!key) continue;
+    registrationCountByDate.set(key, (registrationCountByDate.get(key) || 0) + 1);
+  }
+  const visibleMonthKey = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}`;
+  const monthPeople = overviewPeople.filter((person) => dateKeyFromValue(person.created_at).startsWith(visibleMonthKey));
+  const monthHadir = monthPeople.filter((person) => person.status === 'Hadir').length;
+  const activityPeople = selectedDate
+    ? overviewPeople.filter((person) => dateKeyFromValue(person.created_at) === selectedDate)
+    : overviewPeople.slice(0, 3);
+  const todayKey = dateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  const shiftCalendar = (delta: number) => {
+    const next = new Date(calendarYear, calendarMonth + delta, 1);
+    setCalendarYear(next.getFullYear());
+    setCalendarMonth(next.getMonth());
+    setSelectedDate(null);
+  };
 
   interface MenuItem {
     id: 'overview' | 'participants' | 'checkin' | 'topics' | 'segmentation' | 'audit' | 'settings';
@@ -455,10 +521,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
       <div className="w-full max-w-[1540px] bg-[#F4F5FA] rounded-[32px] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-purple-900/30 min-h-[92vh]">
         
         {/* LEFT SIDEBAR NAVIGATION (PURPLE BACKDROP WITH ACTIVE SEAMLESS PILL & BOTANICAL ILLUSTRATION) */}
-        <aside className="w-full md:w-64 bg-[#4A3B73] text-white flex flex-col justify-between shrink-0 relative overflow-hidden">
+        <aside className={`${sidebarOpen ? 'flex' : 'hidden'} w-full md:w-64 bg-[#4A3B73] text-white flex-col justify-between shrink-0 relative overflow-hidden`}>
           {/* Top Branding Section */}
           <div className="relative z-10 p-5 space-y-6">
-            <div className="text-center pt-2">
+            <div className="text-center pt-2 relative">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                title="Sembunyikan menu"
+                aria-label="Sembunyikan menu"
+                className="absolute right-0 top-0 p-1.5 rounded-lg text-purple-200 hover:bg-white/10 hover:text-white"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
               <div className="w-12 h-12 rounded-full bg-white text-[#4A3B73] overflow-hidden flex items-center justify-center font-black text-xl mx-auto shadow-lg">
                 {brand.icon_url ? (
                   <img src={brand.icon_url} alt="" className="w-full h-full object-cover" />
@@ -562,6 +637,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
           {/* FLOATING TOP BAR HEADER (MATCHING MOCKUP) */}
           <header className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200/60 flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(open => !open)}
+                title={sidebarOpen ? 'Sembunyikan menu' : 'Tampilkan menu'}
+                aria-label={sidebarOpen ? 'Sembunyikan menu' : 'Tampilkan menu'}
+                aria-pressed={sidebarOpen}
+                className="w-9 h-9 rounded-xl border border-slate-200 bg-[#F4F5FA] text-[#4A3B73] flex items-center justify-center hover:bg-slate-100 shrink-0"
+              >
+                {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
+              </button>
               <div>
                 <h1 className="text-base sm:text-lg font-black text-[#2D234C] tracking-tight">
                   Welcome to Estrada
@@ -706,31 +791,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                 
                 {/* CARD 1: CALENDAR & ATTENDANCE */}
                 <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/70 space-y-4">
-                  {/* Calendar Header with Coral Left Button & Date Title */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <h3 className="text-xs font-black text-slate-900 tracking-wide uppercase">
                       Calendar & Attendance
                     </h3>
                     <div className="flex items-center gap-2">
-                      <button 
+                      <button
+                        type="button"
+                        onClick={() => shiftCalendar(-1)}
                         className="w-6 h-6 rounded-full bg-rose-400 text-white flex items-center justify-center hover:bg-rose-500 shadow-xs transition-colors"
-                        title="Bulan Sebelumnya"
+                        title="Bulan sebelumnya"
+                        aria-label="Bulan sebelumnya"
                       >
                         <ChevronLeft className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-xs font-extrabold text-slate-800">
-                        15 November, 2026
-                      </span>
-                      <button 
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const now = new Date();
+                          setCalendarYear(now.getFullYear());
+                          setCalendarMonth(now.getMonth());
+                          setSelectedDate(null);
+                        }}
+                        className="text-xs font-extrabold text-slate-800 min-w-[8.5rem] text-center capitalize"
+                        title="Kembali ke bulan ini"
+                      >
+                        {new Date(calendarYear, calendarMonth, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => shiftCalendar(1)}
                         className="w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center hover:bg-slate-300 shadow-xs transition-colors"
-                        title="Bulan Berikutnya"
+                        title="Bulan berikutnya"
+                        aria-label="Bulan berikutnya"
                       >
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Day Names Row */}
                   <div className="grid grid-cols-7 text-center text-[11px] font-bold text-slate-400 pt-1">
                     <span>Sun</span>
                     <span>Mon</span>
@@ -741,72 +840,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                     <span>Sat</span>
                   </div>
 
-                  {/* Real November 2026 Date Grid (Nov 1, 2026 is Sunday) */}
-                  {(() => {
-                    // Extract real registration days from participants
-                    const participantDays = new Map<number, number>();
-                    participants.forEach(p => {
-                      if (p.created_at) {
-                        const d = new Date(p.created_at);
-                        const day = d.getDate();
-                        participantDays.set(day, (participantDays.get(day) || 0) + 1);
-                      }
-                    });
+                  <div className="grid grid-cols-7 gap-y-2 text-center text-xs font-semibold text-slate-600">
+                    {calendarCells(calendarYear, calendarMonth).map((day, index) => {
+                      if (!day) return <div key={`blank-${index}`} className="h-8" />;
 
-                    // 30 days of November 2026
-                    const days = Array.from({ length: 30 }, (_, i) => i + 1);
+                      const key = dateKey(calendarYear, calendarMonth, day);
+                      const regCount = registrationCountByDate.get(key) || 0;
+                      const isEventDay = key === EVENT_DATE;
+                      const isToday = key === todayKey;
+                      const isSelected = key === selectedDate;
+                      const label = String(day).padStart(2, '0');
+                      const title = [
+                        formatIdDate(key, true),
+                        isEventDay ? 'Hari H Estrada, Grand Ballroom JCC Senayan' : '',
+                        regCount ? `${regCount} peserta terdaftar` : ''
+                      ].filter(Boolean).join('. ');
 
-                    return (
-                      <div className="grid grid-cols-7 gap-y-2 text-center text-xs font-semibold text-slate-600">
-                        {days.map(day => {
-                          const isEventDay = day === 15;
-                          const regCount = participantDays.get(day) || 0;
-                          const hasRegs = regCount > 0;
+                      return (
+                        <div key={key} className="flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDate((current) => current === key ? null : key)}
+                            title={title}
+                            aria-pressed={isSelected}
+                            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-colors ${
+                              isSelected
+                                ? 'bg-[#4A3B73] text-white font-black shadow-md'
+                                : isEventDay
+                                  ? 'bg-amber-400 text-slate-900 font-black shadow-md ring-2 ring-amber-200'
+                                  : regCount
+                                    ? 'bg-emerald-500 text-white font-bold shadow-xs hover:bg-emerald-600'
+                                    : isToday
+                                      ? 'ring-1 ring-slate-400 text-slate-900 font-black'
+                                      : 'text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                          if (isEventDay) {
-                            return (
-                              <div key={day} className="flex items-center justify-center">
-                                <span 
-                                  className="w-7 h-7 rounded-full bg-amber-400 text-slate-900 font-black flex items-center justify-center text-xs shadow-md ring-2 ring-amber-200 cursor-pointer"
-                                  title="15 Nov 2026: Hari H KTT Estrada di JCC Senayan"
-                                >
-                                  15
-                                </span>
-                              </div>
-                            );
-                          }
-
-                          if (hasRegs) {
-                            return (
-                              <div key={day} className="flex items-center justify-center">
-                                <span 
-                                  className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-xs shadow-xs cursor-pointer hover:bg-emerald-600 transition-colors"
-                                  title={`${regCount} Peserta terdaftar pada tanggal ${day}`}
-                                >
-                                  {String(day).padStart(2, '0')}
-                                </span>
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <span key={day} className="py-1 text-slate-600 hover:text-slate-900">
-                              {String(day).padStart(2, '0')}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Event Sub-note with Real Statistics */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-1.5 text-slate-600 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-amber-400" />
-                      <span>15 Nov 2026: Grand Ballroom JCC Senayan</span>
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-medium min-w-0">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                      <span className="truncate">
+                        {visibleMonthKey === '2026-11'
+                          ? '15 Nov 2026: Grand Ballroom JCC Senayan'
+                          : 'Klik tanggal untuk melihat pendaftaran'}
+                      </span>
                     </div>
-                    <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      {hadirCount} Hadir ({stats?.total_participants ? Math.round((hadirCount / stats.total_participants) * 100) : 0}%)
+                    <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                      {monthPeople.length} daftar · {monthHadir} hadir
                     </span>
                   </div>
                 </div>
@@ -818,39 +904,58 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                       <h3 className="text-xs font-black text-slate-900 tracking-wide uppercase">
                         Activities Notification
                       </h3>
-                      <p className="text-[10px] text-slate-400">Pendaftaran terbaru dari sistem</p>
+                      <p className="text-[10px] text-slate-400">
+                        {selectedDate
+                          ? `Pendaftaran ${formatIdDate(selectedDate, true)}`
+                          : 'Pendaftaran terbaru dari sistem'}
+                      </p>
                     </div>
-                    <button
-                      onClick={() => setActiveTab('participants')}
-                      className="px-3 py-1 rounded-full border border-emerald-500 text-emerald-600 hover:bg-emerald-50 text-[11px] font-bold transition-colors"
-                    >
-                      View All
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {selectedDate && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDate(null)}
+                          className="px-3 py-1 rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50 text-[11px] font-bold transition-colors"
+                        >
+                          Semua
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('participants')}
+                        className="px-3 py-1 rounded-full border border-emerald-500 text-emerald-600 hover:bg-emerald-50 text-[11px] font-bold transition-colors"
+                      >
+                        View All
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
-                    {participants.length === 0 ? (
-                      <p className="text-xs text-slate-400 py-4 text-center">Belum ada aktivitas pendaftaran peserta.</p>
+                    {activityPeople.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-4 text-center">
+                        {selectedDate ? 'Tidak ada pendaftaran pada tanggal ini.' : 'Belum ada aktivitas pendaftaran peserta.'}
+                      </p>
                     ) : (
-                      participants.slice(0, 3).map((p, idx) => (
-                        <div key={p.id || idx} className="space-y-1 pb-3 border-b border-slate-100 last:border-b-0 last:pb-0">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-extrabold text-slate-900 truncate pr-2" title={p.institution_name}>
-                              {p.institution_name}
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-400 shrink-0">
-                              {new Date(p.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-600 leading-relaxed">
-                            <TicketLink person={p} className="font-bold text-slate-800 hover:underline">{p.full_name}</TicketLink> ({p.role_position.includes('Direktur') ? 'Direktur RS' : p.role_position.includes('Mitra') ? 'Mitra Telkom' : 'Narasumber'}) terdaftar resmi dengan kode <TicketLink person={p} className="font-mono font-bold text-[#4A3B73] hover:underline">{p.reg_number}</TicketLink>.
-                          </p>
-                          <div className="flex items-center justify-between pt-0.5">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                      activityPeople.map((p) => {
+                        const role = p.role_position.includes('Direktur') ? 'Direktur RS' : p.role_position.includes('Mitra') ? 'Mitra Telkom' : 'Narasumber';
+                        return (
+                        <div key={p.id} className="space-y-1 pb-3 border-b border-slate-100 last:border-b-0 last:pb-0">
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <TicketLink person={p} className="font-extrabold text-slate-900 truncate hover:underline">{p.full_name}</TicketLink>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
                               p.status === 'Hadir' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
                             }`}>
-                              Status: {p.status}
+                              {p.status}
                             </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            {p.institution_name} · {role}
+                          </p>
+                          <p className="text-[11px]">
+                            <TicketLink person={p} className="font-mono font-bold text-[#4A3B73] hover:underline">{p.reg_number}</TicketLink>
+                            <span className="text-slate-400"> · {formatRegisteredAt(p.created_at)}</span>
+                          </p>
+                          <div className="flex items-center justify-end pt-0.5">
                             <button
                               onClick={() => onOpenBadge(p)}
                               className="text-[10px] text-sky-700 hover:text-sky-900 font-bold hover:underline"
@@ -859,7 +964,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                             </button>
                           </div>
                         </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -1232,6 +1338,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                       <th className="py-3 px-3.5">Instansi Rumah Sakit</th>
                       <th className="py-3 px-3.5">Jabatan</th>
                       <th className="py-3 px-3.5">WhatsApp</th>
+                      <th className="py-3 px-3.5">Waktu registrasi</th>
                       <th className="py-3 px-3.5">Status</th>
                       <th className="py-3 px-3.5 text-right">Aksi</th>
                     </tr>
@@ -1239,11 +1346,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                   <tbody className="divide-y divide-slate-100">
                     {loading ? (
                       <tr>
-                        <td colSpan={7} className="py-10 text-center text-slate-400">Memuat data peserta...</td>
+                        <td colSpan={8} className="py-10 text-center text-slate-400">Memuat data peserta...</td>
                       </tr>
                     ) : participants.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-10 text-center text-slate-400">Tidak ada peserta yang cocok dengan filter.</td>
+                        <td colSpan={8} className="py-10 text-center text-slate-400">Tidak ada peserta yang cocok dengan filter.</td>
                       </tr>
                     ) : (
                       participants.map(p => (
@@ -1262,6 +1369,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                           </td>
                           <td className="py-2.5 px-3.5 font-mono text-slate-600 whitespace-nowrap">
                             {p.phone_wa}
+                          </td>
+                          <td className="py-2.5 px-3.5 font-mono text-slate-600 whitespace-nowrap">
+                            {formatRegisteredAt(p.created_at)}
                           </td>
                           <td className="py-2.5 px-3.5 whitespace-nowrap">
                             <select
@@ -1663,6 +1773,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
               <p><strong>Email:</strong> {selectedParticipant.email}</p>
               <p><strong>Kota:</strong> {selectedParticipant.city}</p>
               <p><strong>Status:</strong> {selectedParticipant.status}</p>
+              <p><strong>Waktu registrasi:</strong> {formatRegisteredAt(selectedParticipant.created_at)}</p>
               <p>
                 <strong>URL tiket:</strong>{' '}
                 <a href={ticketHref(selectedParticipant)} target="_blank" rel="noopener noreferrer" className="text-sky-700 break-all hover:underline">

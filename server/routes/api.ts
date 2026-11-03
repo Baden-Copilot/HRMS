@@ -169,7 +169,8 @@ router.post('/register', (req: Request, res: Response): any => {
         status: 'Terdaftar',
         qr_token,
         topics: topicsFor(newParticipantId),
-        registered_at: new Date().toISOString()
+        created_at: registeredAt,
+        registered_at: registeredAt
       },
       notification: {
         whatsapp_status: 'QUEUED',
@@ -228,6 +229,7 @@ router.get('/ticket/:query', (req: Request, res: Response): any => {
         phone_wa: participant.phone_wa,
         email: participant.email,
         city: participant.city,
+        created_at: participant.created_at,
         registered_at: participant.created_at,
         registration_id: registration.id,
         status: registration.status,
