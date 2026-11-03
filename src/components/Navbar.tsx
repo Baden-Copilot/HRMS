@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useBrand } from '../brand.ts';
+import { RegistrationQrModal } from './RegistrationQrCard.tsx';
 
 export type AppView = 'register' | 'admin';
 
@@ -13,6 +14,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenTicketLookup
 }) => {
   const brand = useBrand();
+  const [qrOpen, setQrOpen] = useState(false);
 
   return (
     <header className="w-full bg-[#F3F6FA]">
@@ -24,6 +26,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           Estrada
         </span>
         <div className="flex items-center gap-3 sm:gap-4 text-sm shrink-0">
+          <button
+            onClick={() => setQrOpen(true)}
+            className="text-slate-600 hover:text-slate-900"
+          >
+            QR Daftar
+          </button>
           <button
             onClick={onOpenTicketLookup}
             className="text-slate-600 hover:text-slate-900"
@@ -38,6 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </div>
       </div>
+      {qrOpen && <RegistrationQrModal onClose={() => setQrOpen(false)} />}
     </header>
   );
 };

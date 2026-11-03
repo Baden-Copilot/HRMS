@@ -42,6 +42,7 @@ import { exportParticipantsToExcel, exportParticipantsToCsv, exportParticipantsT
 import { ticketPageUrl } from '../utils/ticketGenerator.ts';
 import { useBrand } from '../brand.ts';
 import { BrandSettings } from './BrandSettings.tsx';
+import { RegistrationQrCard } from './RegistrationQrCard.tsx';
 
 interface AdminDashboardProps {
   onOpenBadge: (p: Participant) => void;
@@ -700,6 +701,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
               
               {/* LEFT COLUMN: CALENDAR & ATTENDANCE + ACTIVITIES NOTIFICATION (~5/12 or 5.5/12) */}
               <div className="lg:col-span-5 space-y-6">
+
+                <RegistrationQrCard />
                 
                 {/* CARD 1: CALENDAR & ATTENDANCE */}
                 <div className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/70 space-y-4">
