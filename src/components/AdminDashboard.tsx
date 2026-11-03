@@ -66,6 +66,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
   const [topics, setTopics] = useState<TechnologyTopic[]>([]);
   const [adminTopics, setAdminTopics] = useState<TechnologyTopic[]>([]);
   const [segments, setSegments] = useState<InterestSegment[]>([]);
+  const [auditLogs, setAuditLogs] = useState<DashboardStats['recent_audits']>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Filters & Search
@@ -180,12 +181,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
     }
   };
 
+  const loadAuditLogs = async () => {
+    try {
+      const res = await fetch('/api/admin/audit-logs');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.logs)) setAuditLogs(data.logs);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       loadStats();
       loadParticipants();
       loadAdminTopics();
       loadSegments();
+      loadAuditLogs();
     }
   }, [isAuthenticated, filterRole, filterCity, filterStatus, filterTopic]);
 
@@ -239,6 +251,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
         loadParticipants();
         loadStats();
         loadSegments();
+        loadAuditLogs();
       }
     } catch (err) {
       console.error(err);
@@ -257,6 +270,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
         loadParticipants();
         loadStats();
         loadSegments();
+        loadAuditLogs();
       }
     } catch (err) {
       console.error(err);
@@ -275,6 +289,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
         loadAdminTopics();
         loadStats();
         loadSegments();
+        loadAuditLogs();
       }
     } catch (err) {
       console.error(err);
@@ -291,6 +306,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
       if (data.success) {
         setSegmentDeleteCandidate(null);
         loadSegments();
+        loadAuditLogs();
       }
     } catch (err) {
       console.error(err);
@@ -323,6 +339,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
         setRecentCheckIns(prev => [data.participant, ...prev.slice(0, 9)]);
         loadStats();
         loadParticipants();
+        loadAuditLogs();
       }
     } catch (err) {
       setScanResult({
@@ -1610,14 +1627,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                 Log Audit Aktivitas Sistem
               </h3>
               <div className="space-y-2">
-                {stats?.recent_audits?.map(log => (
+                {(auditLogs.length > 0 ? auditLogs : stats?.recent_audits || []).map(log => (
                   <div key={log.id} className="p-3 bg-[#F4F5FA] rounded-xl border border-slate-100 flex items-center justify-between text-xs">
                     <div>
                       <span className="font-mono font-bold text-[#4A3B73] mr-2">[{log.action}]</span>
                       <span className="text-slate-700 font-medium">{log.details}</span>
                     </div>
                     <span className="text-[10px] font-mono text-slate-400">
-                      {new Date(log.created_at).toLocaleTimeString('id-ID')}
+                      {new Date(log.created_at.replace(' ', 'T')).toLocaleString('id-ID')}
                     </span>
                   </div>
                 ))}
@@ -1679,6 +1696,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
             loadParticipants();
             loadStats();
             loadSegments();
+            loadAuditLogs();
           }}
         />
       )}
@@ -1693,6 +1711,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
             loadAdminTopics();
             loadStats();
             loadSegments();
+            loadAuditLogs();
           }}
         />
       )}
@@ -1706,6 +1725,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
           onSaved={() => {
             setSegmentModalOpen(false);
             loadSegments();
+            loadAuditLogs();
           }}
         />
       )}
@@ -2102,6 +2122,10 @@ function EditModal({ participant, topics, onClose, onSaved }: any) {
   const [email, setEmail] = useState(participant.email);
   const [city, setCity] = useState(participant.city);
   const [status, setStatus] = useState(participant.status);
+  const [notes, setNotes] = useState(participant.notes || '');
+  const [selectedTopics, setSelectedTopics] = useState<string[]>(
+    (participant.topics || []).map((topic: { code: string }) => topic.code)
+  );
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -2119,7 +2143,8 @@ function EditModal({ participant, topics, onClose, onSaved }: any) {
           email,
           city,
           status,
-          topics: participant.topics?.map((t: any) => t.code) || []
+          notes,
+          topics: selectedTopics
         })
       });
       const data = await res.json();
@@ -2175,6 +2200,28 @@ function EditModal({ participant, topics, onClose, onSaved }: any) {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
+              <label className="block text-slate-700 font-bold mb-1">Email</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="w-full px-3 py-2 border rounded-xl focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 font-bold mb-1">Kota</label>
+              <input
+                type="text"
+                required
+                value={city}
+                onChange={e => setCity(e.target.value)}
+                className="w-full px-3 py-2 border rounded-xl focus:outline-none"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
               <label className="block text-slate-700 font-bold mb-1">WhatsApp</label>
               <input
                 type="text"
@@ -2198,6 +2245,34 @@ function EditModal({ participant, topics, onClose, onSaved }: any) {
                 <option value="Dibatalkan">Dibatalkan</option>
               </select>
             </div>
+          </div>
+          <div>
+            <label className="block text-slate-700 font-bold mb-1">Topik minat</label>
+            <div className="grid grid-cols-2 gap-1.5 max-h-28 overflow-y-auto p-2 bg-[#F4F5FA] border border-slate-200 rounded-xl">
+              {(topics || []).map((topic: { code: string; title: string }) => (
+                <label key={topic.code} className="flex items-center gap-1.5 cursor-pointer text-[11px]">
+                  <input
+                    type="checkbox"
+                    checked={selectedTopics.includes(topic.code)}
+                    onChange={() => setSelectedTopics((current: string[]) => (
+                      current.includes(topic.code)
+                        ? current.filter((code) => code !== topic.code)
+                        : [...current, topic.code]
+                    ))}
+                  />
+                  <span className="truncate"><strong>[{topic.code}]</strong> {topic.title}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-slate-700 font-bold mb-1">Catatan</label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              className="w-full px-3 py-2 border rounded-xl focus:outline-none"
+            />
           </div>
           <div className="flex justify-end gap-2 pt-3 border-t">
             <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-100 rounded-xl text-slate-700 font-semibold">

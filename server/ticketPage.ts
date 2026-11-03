@@ -1,4 +1,4 @@
-import { db } from './db.ts';
+import { data } from './db.ts';
 import { publicBrand } from './brand.ts';
 
 export function extractTicketCodes(raw: string): string[] {
@@ -25,33 +25,24 @@ export function extractTicketCodes(raw: string): string[] {
 export function findTicket(raw: string) {
   const codes = extractTicketCodes(raw);
   if (codes.length === 0) return null;
-  const uppers = codes.map((code) => code.toUpperCase());
-  const marks = uppers.map(() => '?').join(', ');
-  return db.prepare(`
-    SELECT
-      p.reg_number,
-      p.full_name,
-      p.role_position,
-      p.institution_name,
-      p.city,
-      er.status,
-      er.qr_token,
-      er.check_in_time
-    FROM participants p
-    JOIN event_registrations er ON er.participant_id = p.id
-    WHERE UPPER(er.qr_token) IN (${marks})
-       OR UPPER(p.reg_number) IN (${marks})
-    LIMIT 1
-  `).get(...uppers, ...uppers) as {
-    reg_number: string;
-    full_name: string;
-    role_position: string;
-    institution_name: string;
-    city: string;
-    status: string;
-    qr_token: string;
-    check_in_time: string | null;
-  } | undefined;
+  const uppers = new Set(codes.map((code) => code.toUpperCase()));
+  const store = data();
+  for (const registration of store.event_registrations) {
+    const participant = store.participants.find((row) => row.id === registration.participant_id);
+    if (!participant) continue;
+    if (!uppers.has(registration.qr_token.toUpperCase()) && !uppers.has(participant.reg_number.toUpperCase())) continue;
+    return {
+      reg_number: participant.reg_number,
+      full_name: participant.full_name,
+      role_position: participant.role_position,
+      institution_name: participant.institution_name,
+      city: participant.city,
+      status: registration.status,
+      qr_token: registration.qr_token,
+      check_in_time: registration.check_in_time,
+    };
+  }
+  return undefined;
 }
 
 function esc(value: unknown) {

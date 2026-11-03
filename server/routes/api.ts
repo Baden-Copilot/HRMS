@@ -1,15 +1,29 @@
 import { Router, Request, Response } from 'express';
-import { db, generateNextRegNumber } from '../db.ts';
+import {
+  data,
+  dateOnly,
+  generateNextRegNumber,
+  linkTopics,
+  mutate,
+  nextId,
+  pushAudit,
+  removeParticipant,
+  stamp,
+  topicsFor,
+} from '../db.ts';
 import { normalizeIndonesianPhone, validateEmail, sanitizeText } from '../validation.ts';
 import { extractTicketCodes } from '../ticketPage.ts';
 import { clearBrand, publicBrand, saveBrand } from '../brand.ts';
 
 const router = Router();
 
-// 1. GET /api/topics - List all technology topics
+function includesText(value: string, needle: string) {
+  return value.toLowerCase().includes(needle.toLowerCase());
+}
+
 router.get('/topics', (_req: Request, res: Response) => {
   try {
-    const topics = db.prepare('SELECT * FROM technology_topics ORDER BY code ASC').all();
+    const topics = [...data().technology_topics].sort((a, b) => a.code.localeCompare(b.code));
     res.json({ success: true, topics });
   } catch (error) {
     console.error('Error fetching topics:', error);
@@ -17,7 +31,6 @@ router.get('/topics', (_req: Request, res: Response) => {
   }
 });
 
-// 2. POST /api/register - Public Participant Registration
 router.post('/register', (req: Request, res: Response): any => {
   try {
     const {
@@ -29,15 +42,13 @@ router.post('/register', (req: Request, res: Response): any => {
       city,
       topics = [],
       pdp_consent,
-      honeypot // anti-spam bot trap
+      honeypot
     } = req.body;
 
-    // Honeypot check for bots
     if (honeypot) {
       return res.status(400).json({ success: false, error: 'Spam detected' });
     }
 
-    // Validation checks
     const sanitizedName = sanitizeText(full_name);
     if (!sanitizedName || sanitizedName.length < 3) {
       return res.status(400).json({ success: false, error: 'Nama Lengkap wajib diisi minimal 3 karakter.' });
@@ -60,13 +71,11 @@ router.post('/register', (req: Request, res: Response): any => {
       return res.status(400).json({ success: false, error: 'Nama Rumah Sakit / Perusahaan / Instansi wajib diisi.' });
     }
 
-    // Phone validation & normalization
     const phoneCheck = normalizeIndonesianPhone(phone_wa);
     if (!phoneCheck.valid) {
       return res.status(400).json({ success: false, error: phoneCheck.error });
     }
 
-    // Email validation
     const emailCheck = validateEmail(email);
     if (!emailCheck.valid) {
       return res.status(400).json({ success: false, error: emailCheck.error });
@@ -84,13 +93,13 @@ router.post('/register', (req: Request, res: Response): any => {
       });
     }
 
-    // Deduplication check: check if phone or email already registered in Estrada 2026
-    const existing = db.prepare(`
-      SELECT p.reg_number, p.full_name, p.institution_name, er.status
-      FROM participants p
-      JOIN event_registrations er ON er.participant_id = p.id
-      WHERE (p.phone_wa = ? OR p.email = ?) AND er.event_name = 'ESTRADA 2026'
-    `).get(phoneCheck.normalized, emailCheck.normalized) as any;
+    const store = data();
+    const existing = store.participants.find((participant) => {
+      if (participant.phone_wa !== phoneCheck.normalized && participant.email !== emailCheck.normalized) return false;
+      return store.event_registrations.some(
+        (registration) => registration.participant_id === participant.id && registration.event_name === 'ESTRADA 2026'
+      );
+    });
 
     if (existing) {
       return res.status(409).json({
@@ -101,77 +110,49 @@ router.post('/register', (req: Request, res: Response): any => {
       });
     }
 
-    // Generate unique Registration Number
     const reg_number = generateNextRegNumber();
     const qr_token = `ESTRADA-2026-${reg_number}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const registeredAt = stamp();
+    const selectedCodes = Array.isArray(topics)
+      ? topics.filter((code: unknown) => typeof code === 'string' && code.length === 1)
+      : [];
 
-    // Database transaction
-    const insertParticipant = db.prepare(`
-      INSERT INTO participants (
-        reg_number, full_name, role_position, institution_name, phone_wa, email, city, pdp_consent, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `);
-
-    const insertTopicRel = db.prepare(`
-      INSERT OR IGNORE INTO participant_topics (participant_id, topic_code)
-      VALUES (?, ?)
-    `);
-
-    const insertEventReg = db.prepare(`
-      INSERT INTO event_registrations (
-        participant_id, event_name, status, qr_token, created_at, updated_at
-      ) VALUES (?, 'ESTRADA 2026', 'Terdaftar', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `);
-
-    const insertAudit = db.prepare(`
-      INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-      VALUES ('REGISTER', 'PARTICIPANT', ?, 'public_web', ?)
-    `);
-
-    let newParticipantId = 0;
-    const executeTx = db.transaction(() => {
-      const pRes = insertParticipant.run(
+    const newParticipantId = mutate((db) => {
+      const id = nextId(db.participants);
+      db.participants.push({
+        id,
         reg_number,
-        sanitizedName,
+        full_name: sanitizedName,
         role_position,
-        sanitizedInst,
-        phoneCheck.normalized,
-        emailCheck.normalized,
-        sanitizedCity
-      );
-      newParticipantId = Number(pRes.lastInsertRowid);
-
-      if (Array.isArray(topics) && topics.length > 0) {
-        for (const code of topics) {
-          if (typeof code === 'string' && code.length === 1) {
-            insertTopicRel.run(newParticipantId, code.toUpperCase());
-          }
-        }
-      }
-
-      insertEventReg.run(newParticipantId, qr_token);
-
-      insertAudit.run(
-        reg_number,
-        JSON.stringify({
-          name: sanitizedName,
-          institution: sanitizedInst,
-          role: role_position,
-          topics_count: topics.length
-        })
-      );
+        institution_name: sanitizedInst,
+        phone_wa: phoneCheck.normalized,
+        email: emailCheck.normalized,
+        city: sanitizedCity,
+        pdp_consent: 1,
+        created_at: registeredAt,
+        updated_at: registeredAt,
+      });
+      linkTopics(db, id, selectedCodes);
+      db.event_registrations.push({
+        id: nextId(db.event_registrations),
+        participant_id: id,
+        event_name: 'ESTRADA 2026',
+        status: 'Terdaftar',
+        qr_token,
+        check_in_time: null,
+        badge_printed: 0,
+        notes: null,
+        created_at: registeredAt,
+        updated_at: registeredAt,
+      });
+      pushAudit(db, 'REGISTER', 'PARTICIPANT', reg_number, 'public_web', JSON.stringify({
+        name: sanitizedName,
+        institution: sanitizedInst,
+        role: role_position,
+        topics_count: topics.length
+      }));
+      return id;
     });
-
-    executeTx();
-
-    // Retrieve topic details
-    const selectedTopicRows = db.prepare(`
-      SELECT tt.code, tt.title, tt.category
-      FROM participant_topics pt
-      JOIN technology_topics tt ON tt.code = pt.topic_code
-      WHERE pt.participant_id = ?
-      ORDER BY tt.code ASC
-    `).all(newParticipantId);
 
     res.status(201).json({
       success: true,
@@ -187,7 +168,7 @@ router.post('/register', (req: Request, res: Response): any => {
         city: sanitizedCity,
         status: 'Terdaftar',
         qr_token,
-        topics: selectedTopicRows,
+        topics: topicsFor(newParticipantId),
         registered_at: new Date().toISOString()
       },
       notification: {
@@ -207,62 +188,53 @@ router.post('/register', (req: Request, res: Response): any => {
   }
 });
 
-// 3. GET /api/ticket/:query - Public ticket lookup (by registration number or phone)
 router.get('/ticket/:query', (req: Request, res: Response): any => {
   try {
     const rawQuery = extractTicketCodes(req.params.query.trim())[0] || req.params.query.trim();
-
-    // Check phone normalization if it looks like a phone number
     let phoneNormalized = '';
     if (/^[0-9+]+$/.test(rawQuery.replace(/[\s\-]/g, ''))) {
       const p = normalizeIndonesianPhone(rawQuery);
       if (p.valid) phoneNormalized = p.normalized;
     }
 
-    const participant = db.prepare(`
-      SELECT 
-        p.id,
-        p.reg_number,
-        p.full_name,
-        p.role_position,
-        p.institution_name,
-        p.phone_wa,
-        p.email,
-        p.city,
-        p.created_at as registered_at,
-        er.id as registration_id,
-        er.status,
-        er.qr_token,
-        er.check_in_time,
-        er.badge_printed
-      FROM participants p
-      JOIN event_registrations er ON er.participant_id = p.id
-      WHERE UPPER(p.reg_number) = UPPER(?) 
-         OR p.phone_wa = ? 
-         OR UPPER(er.qr_token) = UPPER(?)
-      LIMIT 1
-    `).get(rawQuery, phoneNormalized || rawQuery, rawQuery) as any;
+    const store = data();
+    const phone = phoneNormalized || rawQuery;
+    const registration = store.event_registrations.find((item) => {
+      const participant = store.participants.find((row) => row.id === item.participant_id);
+      if (!participant) return false;
+      return participant.reg_number.toUpperCase() === rawQuery.toUpperCase()
+        || participant.phone_wa === phone
+        || item.qr_token.toUpperCase() === rawQuery.toUpperCase();
+    });
+    const participant = registration
+      ? store.participants.find((row) => row.id === registration.participant_id)
+      : undefined;
 
-    if (!participant) {
+    if (!participant || !registration) {
       return res.status(404).json({
         success: false,
         error: 'Data pendaftaran tidak ditemukan. Pastikan Nomor Registrasi atau Nomor WhatsApp sudah benar.'
       });
     }
 
-    const topics = db.prepare(`
-      SELECT tt.code, tt.title, tt.category
-      FROM participant_topics pt
-      JOIN technology_topics tt ON tt.code = pt.topic_code
-      WHERE pt.participant_id = ?
-      ORDER BY tt.code ASC
-    `).all(participant.id);
-
     res.json({
       success: true,
       participant: {
-        ...participant,
-        topics
+        id: participant.id,
+        reg_number: participant.reg_number,
+        full_name: participant.full_name,
+        role_position: participant.role_position,
+        institution_name: participant.institution_name,
+        phone_wa: participant.phone_wa,
+        email: participant.email,
+        city: participant.city,
+        registered_at: participant.created_at,
+        registration_id: registration.id,
+        status: registration.status,
+        qr_token: registration.qr_token,
+        check_in_time: registration.check_in_time,
+        badge_printed: registration.badge_printed,
+        topics: topicsFor(participant.id)
       }
     });
   } catch (error) {
@@ -271,7 +243,6 @@ router.get('/ticket/:query', (req: Request, res: Response): any => {
   }
 });
 
-// 4. POST /api/admin/login - Simple session auth
 router.post('/admin/login', (req: Request, res: Response): any => {
   try {
     const { username, password } = req.body;
@@ -279,16 +250,14 @@ router.post('/admin/login', (req: Request, res: Response): any => {
       return res.status(400).json({ success: false, error: 'Username dan password wajib diisi' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as any;
+    const user = data().users.find((item) => item.username === username);
     if (!user || user.password_hash !== password) {
       return res.status(401).json({ success: false, error: 'Username atau password admin salah' });
     }
 
-    // Log admin login
-    db.prepare(`
-      INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-      VALUES ('ADMIN_LOGIN', 'SYSTEM', ?, ?, 'Admin user logged into dashboard')
-    `).run(String(user.id), user.username);
+    mutate((db) => {
+      pushAudit(db, 'ADMIN_LOGIN', 'SYSTEM', String(user.id), user.username, 'Admin user logged into dashboard');
+    });
 
     res.json({
       success: true,
@@ -306,76 +275,48 @@ router.post('/admin/login', (req: Request, res: Response): any => {
   }
 });
 
-// 5. GET /api/admin/stats - Comprehensive Dashboard Analytics & KPIs
 router.get('/admin/stats', (_req: Request, res: Response) => {
   try {
-    // Total participants
-    const totalCount = db.prepare('SELECT COUNT(*) as count FROM participants').get() as { count: number };
+    const store = data();
+    const roleMap = new Map<string, number>();
+    const cityMap = new Map<string, number>();
+    const dayMap = new Map<string, number>();
+    for (const participant of store.participants) {
+      roleMap.set(participant.role_position, (roleMap.get(participant.role_position) || 0) + 1);
+      cityMap.set(participant.city, (cityMap.get(participant.city) || 0) + 1);
+      const day = dateOnly(participant.created_at);
+      dayMap.set(day, (dayMap.get(day) || 0) + 1);
+    }
+    const statusMap = new Map<string, number>();
+    for (const registration of store.event_registrations) {
+      statusMap.set(registration.status, (statusMap.get(registration.status) || 0) + 1);
+    }
 
-    // Role breakdown
-    const roleStats = db.prepare(`
-      SELECT role_position, COUNT(*) as count
-      FROM participants
-      GROUP BY role_position
-    `).all() as { role_position: string; count: number }[];
-
-    // Unique institutions count
-    const institutionCount = db.prepare(`
-      SELECT COUNT(DISTINCT LOWER(institution_name)) as count
-      FROM participants
-    `).get() as { count: number };
-
-    // Status breakdown
-    const statusStats = db.prepare(`
-      SELECT status, COUNT(*) as count
-      FROM event_registrations
-      GROUP BY status
-    `).all() as { status: string; count: number }[];
-
-    // City distribution (top cities)
-    const cityStats = db.prepare(`
-      SELECT city, COUNT(*) as count
-      FROM participants
-      GROUP BY city
-      ORDER BY count DESC
-      LIMIT 10
-    `).all() as { city: string; count: number }[];
-
-    // Technology topics popularity
-    const topicStats = db.prepare(`
-      SELECT tt.code, tt.title, tt.category, COUNT(pt.id) as participant_count
-      FROM technology_topics tt
-      LEFT JOIN participant_topics pt ON pt.topic_code = tt.code
-      GROUP BY tt.code, tt.title, tt.category
-      ORDER BY participant_count DESC, tt.code ASC
-    `).all() as { code: string; title: string; category: string; participant_count: number }[];
-
-    // Registration timeline (daily counts for charts)
-    const dailyRegistrations = db.prepare(`
-      SELECT DATE(created_at) as date, COUNT(*) as count
-      FROM participants
-      GROUP BY DATE(created_at)
-      ORDER BY date ASC
-    `).all();
-
-    // Recent 5 audit logs
-    const recentAudits = db.prepare(`
-      SELECT * FROM audit_logs
-      ORDER BY created_at DESC
-      LIMIT 5
-    `).all();
+    const topics = [...store.technology_topics]
+      .map((topic) => ({
+        code: topic.code,
+        title: topic.title,
+        category: topic.category,
+        participant_count: store.participant_topics.filter((row) => row.topic_code === topic.code).length,
+      }))
+      .sort((a, b) => b.participant_count - a.participant_count || a.code.localeCompare(b.code));
 
     res.json({
       success: true,
       stats: {
-        total_participants: totalCount.count,
-        total_institutions: institutionCount.count,
-        roles: roleStats,
-        statuses: statusStats,
-        cities: cityStats,
-        topics: topicStats,
-        daily_registrations: dailyRegistrations,
-        recent_audits: recentAudits
+        total_participants: store.participants.length,
+        total_institutions: new Set(store.participants.map((row) => row.institution_name.toLowerCase())).size,
+        roles: [...roleMap.entries()].map(([role_position, count]) => ({ role_position, count })),
+        statuses: [...statusMap.entries()].map(([status, count]) => ({ status, count })),
+        cities: [...cityMap.entries()]
+          .map(([city, count]) => ({ city, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10),
+        topics,
+        daily_registrations: [...dayMap.entries()]
+          .map(([date, count]) => ({ date, count }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+        recent_audits: [...store.audit_logs].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5)
       }
     });
   } catch (error) {
@@ -384,7 +325,6 @@ router.get('/admin/stats', (_req: Request, res: Response) => {
   }
 });
 
-// 6. GET /api/admin/participants - Filtered & Searched participants list
 router.get('/admin/participants', (req: Request, res: Response) => {
   try {
     const {
@@ -397,97 +337,66 @@ router.get('/admin/participants', (req: Request, res: Response) => {
       date_to = ''
     } = req.query as Record<string, string>;
 
-    let query = `
-      SELECT 
-        p.id,
-        p.reg_number,
-        p.full_name,
-        p.role_position,
-        p.institution_name,
-        p.phone_wa,
-        p.email,
-        p.city,
-        p.created_at,
-        p.updated_at,
-        er.id as registration_id,
-        er.status,
-        er.qr_token,
-        er.check_in_time,
-        er.badge_printed,
-        er.notes,
-        GROUP_CONCAT(pt.topic_code, ',') as topic_codes
-      FROM participants p
-      JOIN event_registrations er ON er.participant_id = p.id
-      LEFT JOIN participant_topics pt ON pt.participant_id = p.id
-      WHERE 1=1
-    `;
-
-    const params: any[] = [];
-
-    if (search) {
-      query += ` AND (
-        p.full_name LIKE ? OR 
-        p.institution_name LIKE ? OR 
-        p.reg_number LIKE ? OR 
-        p.phone_wa LIKE ? OR 
-        p.email LIKE ?
-      )`;
-      const s = `%${search.trim()}%`;
-      params.push(s, s, s, s, s);
-    }
-
-    if (role && role !== 'ALL') {
-      query += ` AND p.role_position = ?`;
-      params.push(role);
-    }
-
-    if (city && city !== 'ALL') {
-      query += ` AND p.city = ?`;
-      params.push(city);
-    }
-
-    if (status && status !== 'ALL') {
-      query += ` AND er.status = ?`;
-      params.push(status);
-    }
-
-    if (date_from) {
-      query += ` AND DATE(p.created_at) >= ?`;
-      params.push(date_from);
-    }
-
-    if (date_to) {
-      query += ` AND DATE(p.created_at) <= ?`;
-      params.push(date_to);
-    }
-
-    query += ` GROUP BY p.id, er.id`;
-
-    if (topic && topic !== 'ALL') {
-      query += ` HAVING instr(',' || topic_codes || ',', ?) > 0`;
-      params.push(`,${topic},`);
-    }
-
-    query += ` ORDER BY p.id DESC`;
-
-    const rows = db.prepare(query).all(...params) as any[];
-
-    // Fetch all topic master to expand topic_codes
-    const topicMaster = db.prepare('SELECT code, title FROM technology_topics').all() as { code: string; title: string }[];
-    const topicMap = new Map(topicMaster.map(t => [t.code, t.title]));
-
-    const formatted = rows.map(r => {
-      const codes = r.topic_codes ? (r.topic_codes as string).split(',') : [];
-      return {
-        ...r,
-        topics: codes.map(c => ({ code: c, title: topicMap.get(c) || c }))
-      };
-    });
+    const store = data();
+    const topicMap = new Map(store.technology_topics.map((item) => [item.code, item.title]));
+    const rows = store.participants
+      .flatMap((participant) => {
+        return store.event_registrations
+          .filter((registration) => registration.participant_id === participant.id)
+          .map((registration) => ({ participant, registration }));
+      })
+      .filter(({ participant, registration }) => {
+        if (search) {
+          const matched = [participant.full_name, participant.institution_name, participant.reg_number, participant.phone_wa, participant.email]
+            .some((value) => includesText(value, search.trim()));
+          if (!matched) return false;
+        }
+        if (role && role !== 'ALL' && participant.role_position !== role) return false;
+        if (city && city !== 'ALL' && participant.city !== city) return false;
+        if (status && status !== 'ALL' && registration.status !== status) return false;
+        const created = dateOnly(participant.created_at);
+        if (date_from && created < date_from) return false;
+        if (date_to && created > date_to) return false;
+        if (topic && topic !== 'ALL') {
+          const codes = store.participant_topics
+            .filter((row) => row.participant_id === participant.id)
+            .map((row) => row.topic_code);
+          if (!codes.includes(topic)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => b.participant.id - a.participant.id)
+      .map(({ participant, registration }) => {
+        const codes = store.participant_topics
+          .filter((row) => row.participant_id === participant.id)
+          .map((row) => row.topic_code)
+          .sort();
+        return {
+          id: participant.id,
+          reg_number: participant.reg_number,
+          full_name: participant.full_name,
+          role_position: participant.role_position,
+          institution_name: participant.institution_name,
+          phone_wa: participant.phone_wa,
+          email: participant.email,
+          city: participant.city,
+          created_at: participant.created_at,
+          updated_at: participant.updated_at,
+          registration_id: registration.id,
+          status: registration.status,
+          qr_token: registration.qr_token,
+          check_in_time: registration.check_in_time,
+          badge_printed: registration.badge_printed,
+          notes: registration.notes,
+          topic_codes: codes.join(','),
+          topics: codes.map((code) => ({ code, title: topicMap.get(code) || code }))
+        };
+      });
 
     res.json({
       success: true,
-      count: formatted.length,
-      participants: formatted
+      count: rows.length,
+      participants: rows
     });
   } catch (error) {
     console.error('Error fetching participants:', error);
@@ -495,54 +404,35 @@ router.get('/admin/participants', (req: Request, res: Response) => {
   }
 });
 
-// 7. GET /api/admin/participants/:id - Detail participant
 router.get('/admin/participants/:id', (req: Request, res: Response): any => {
   try {
-    const id = req.params.id;
-    const participant = db.prepare(`
-      SELECT 
-        p.*,
-        er.id as registration_id,
-        er.status,
-        er.qr_token,
-        er.check_in_time,
-        er.badge_printed,
-        er.notes
-      FROM participants p
-      JOIN event_registrations er ON er.participant_id = p.id
-      WHERE p.id = ?
-    `).get(id) as any;
-
-    if (!participant) {
+    const id = Number(req.params.id);
+    const store = data();
+    const participant = store.participants.find((row) => row.id === id);
+    const registration = store.event_registrations.find((row) => row.participant_id === id);
+    if (!participant || !registration) {
       return res.status(404).json({ success: false, error: 'Peserta tidak ditemukan' });
     }
 
-    const topics = db.prepare(`
-      SELECT tt.code, tt.title, tt.category, tt.description
-      FROM participant_topics pt
-      JOIN technology_topics tt ON tt.code = pt.topic_code
-      WHERE pt.participant_id = ?
-      ORDER BY tt.code ASC
-    `).all(id);
-
-    const attendanceLogs = db.prepare(`
-      SELECT * FROM attendance_records
-      WHERE registration_id = ?
-      ORDER BY check_in_timestamp DESC
-    `).all(participant.registration_id);
-
-    const auditTrail = db.prepare(`
-      SELECT * FROM audit_logs
-      WHERE entity_id = ? OR entity_id = ?
-      ORDER BY created_at DESC
-      LIMIT 10
-    `).all(participant.reg_number, String(participant.id));
+    const attendanceLogs = store.attendance_records
+      .filter((row) => row.registration_id === registration.id)
+      .sort((a, b) => b.check_in_timestamp.localeCompare(a.check_in_timestamp));
+    const auditTrail = store.audit_logs
+      .filter((row) => row.entity_id === participant.reg_number || row.entity_id === String(participant.id))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, 10);
 
     res.json({
       success: true,
       participant: {
         ...participant,
-        topics,
+        registration_id: registration.id,
+        status: registration.status,
+        qr_token: registration.qr_token,
+        check_in_time: registration.check_in_time,
+        badge_printed: registration.badge_printed,
+        notes: registration.notes,
+        topics: topicsFor(participant.id, 'full'),
         attendanceLogs,
         auditTrail
       }
@@ -553,7 +443,6 @@ router.get('/admin/participants/:id', (req: Request, res: Response): any => {
   }
 });
 
-// 8. PUT /api/admin/participants/:id - Update participant data
 router.put('/admin/participants/:id', (req: Request, res: Response): any => {
   try {
     const id = Number(req.params.id);
@@ -564,17 +453,16 @@ router.put('/admin/participants/:id', (req: Request, res: Response): any => {
       phone_wa,
       email,
       city,
-      topics = [],
+      topics,
       status,
       notes
     } = req.body;
 
-    const existing = db.prepare('SELECT * FROM participants WHERE id = ?').get(id) as any;
+    const existing = data().participants.find((row) => row.id === id);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Peserta tidak ditemukan' });
     }
 
-    // Validation
     const phoneCheck = normalizeIndonesianPhone(phone_wa);
     if (!phoneCheck.valid) {
       return res.status(400).json({ success: false, error: phoneCheck.error });
@@ -585,56 +473,49 @@ router.put('/admin/participants/:id', (req: Request, res: Response): any => {
       return res.status(400).json({ success: false, error: emailCheck.error });
     }
 
-    const updateTx = db.transaction(() => {
-      db.prepare(`
-        UPDATE participants
-        SET full_name = ?,
-            role_position = ?,
-            institution_name = ?,
-            phone_wa = ?,
-            email = ?,
-            city = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(
-        sanitizeText(full_name),
-        role_position,
-        sanitizeText(institution_name),
-        phoneCheck.normalized,
-        emailCheck.normalized,
-        sanitizeText(city),
-        id
-      );
+    mutate((db) => {
+      const participant = db.participants.find((row) => row.id === id);
+      if (!participant) return;
+      participant.full_name = sanitizeText(full_name);
+      participant.role_position = role_position;
+      participant.institution_name = sanitizeText(institution_name);
+      participant.phone_wa = phoneCheck.normalized;
+      participant.email = emailCheck.normalized;
+      participant.city = sanitizeText(city);
+      participant.updated_at = stamp();
 
-      // Update status and notes if provided
-      if (status) {
-        db.prepare(`
-          UPDATE event_registrations
-          SET status = ?,
-              notes = ?,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE participant_id = ?
-        `).run(status, sanitizeText(notes || ''), id);
+      if (status || notes !== undefined) {
+        const registration = db.event_registrations.find((row) => row.participant_id === id);
+        if (registration) {
+          if (status) {
+            const becamePresent = status === 'Hadir' && registration.status !== 'Hadir';
+            registration.status = status;
+            if (status === 'Hadir' && !registration.check_in_time) {
+              registration.check_in_time = new Date().toISOString();
+            }
+            if (becamePresent) {
+              db.attendance_records.push({
+                id: nextId(db.attendance_records),
+                registration_id: registration.id,
+                check_in_timestamp: stamp(),
+                check_in_method: 'MANUAL_ADMIN',
+                operator_name: 'Admin',
+                ip_address: null,
+                device_info: null,
+              });
+            }
+          }
+          if (notes !== undefined) registration.notes = sanitizeText(notes || '');
+          registration.updated_at = stamp();
+        }
       }
 
-      // Update topics
-      db.prepare('DELETE FROM participant_topics WHERE participant_id = ?').run(id);
-      const insertTopic = db.prepare('INSERT INTO participant_topics (participant_id, topic_code) VALUES (?, ?)');
-      for (const t of topics) {
-        if (typeof t === 'string') insertTopic.run(id, t);
+      if (Array.isArray(topics)) {
+        db.participant_topics = db.participant_topics.filter((row) => row.participant_id !== id);
+        linkTopics(db, id, topics);
       }
-
-      // Audit log
-      db.prepare(`
-        INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-        VALUES ('UPDATE_PARTICIPANT', 'PARTICIPANT', ?, 'admin', ?)
-      `).run(
-        existing.reg_number,
-        JSON.stringify({ full_name, institution_name, status })
-      );
+      pushAudit(db, 'UPDATE_PARTICIPANT', 'PARTICIPANT', existing.reg_number, 'admin', JSON.stringify({ full_name, institution_name, status }));
     });
-
-    updateTx();
 
     res.json({ success: true, message: 'Data peserta berhasil diperbarui' });
   } catch (error) {
@@ -643,7 +524,6 @@ router.put('/admin/participants/:id', (req: Request, res: Response): any => {
   }
 });
 
-// 9. PATCH /api/admin/participants/:id/status - Quick status change (Terdaftar, Terverifikasi, Hadir, etc)
 router.patch('/admin/participants/:id/status', (req: Request, res: Response): any => {
   try {
     const id = Number(req.params.id);
@@ -654,44 +534,33 @@ router.patch('/admin/participants/:id/status', (req: Request, res: Response): an
       return res.status(400).json({ success: false, error: 'Status tidak valid' });
     }
 
-    const reg = db.prepare(`
-      SELECT er.id as registration_id, er.status, p.reg_number, p.full_name
-      FROM event_registrations er
-      JOIN participants p ON p.id = er.participant_id
-      WHERE er.participant_id = ?
-    `).get(id) as any;
-
-    if (!reg) {
+    const store = data();
+    const participant = store.participants.find((row) => row.id === id);
+    const registration = store.event_registrations.find((row) => row.participant_id === id);
+    if (!participant || !registration) {
       return res.status(404).json({ success: false, error: 'Pendaftaran tidak ditemukan' });
     }
 
-    const tx = db.transaction(() => {
-      const checkInTime = status === 'Hadir' ? new Date().toISOString() : null;
-      db.prepare(`
-        UPDATE event_registrations
-        SET status = ?,
-            check_in_time = COALESCE(?, check_in_time),
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(status, checkInTime, reg.registration_id);
-
+    const previous = registration.status;
+    mutate((db) => {
+      const current = db.event_registrations.find((row) => row.id === registration.id);
+      if (!current) return;
+      current.status = status;
+      if (status === 'Hadir') current.check_in_time = new Date().toISOString();
+      current.updated_at = stamp();
       if (status === 'Hadir') {
-        db.prepare(`
-          INSERT INTO attendance_records (registration_id, check_in_timestamp, check_in_method, operator_name)
-          VALUES (?, CURRENT_TIMESTAMP, 'MANUAL_ADMIN', ?)
-        `).run(reg.registration_id, operator_name);
+        db.attendance_records.push({
+          id: nextId(db.attendance_records),
+          registration_id: current.id,
+          check_in_timestamp: stamp(),
+          check_in_method: 'MANUAL_ADMIN',
+          operator_name,
+          ip_address: null,
+          device_info: null,
+        });
       }
-
-      db.prepare(`
-        INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-        VALUES ('STATUS_CHANGE', 'REGISTRATION', ?, 'admin', ?)
-      `).run(
-        reg.reg_number,
-        `Status changed from ${reg.status} to ${status} by ${operator_name}`
-      );
+      pushAudit(db, 'STATUS_CHANGE', 'REGISTRATION', participant.reg_number, 'admin', `Status changed from ${previous} to ${status} by ${operator_name}`);
     });
-
-    tx();
 
     res.json({
       success: true,
@@ -703,7 +572,6 @@ router.patch('/admin/participants/:id/status', (req: Request, res: Response): an
   }
 });
 
-// 10. POST /api/admin/check-in - QR Code Scan Check-In Endpoint
 router.post('/admin/check-in', (req: Request, res: Response): any => {
   try {
     const { code, operator_name = 'Check-in Desk Gate 1' } = req.body;
@@ -712,81 +580,67 @@ router.post('/admin/check-in', (req: Request, res: Response): any => {
     }
 
     const cleanCode = code.trim();
-    const codes = extractTicketCodes(cleanCode).map((item) => item.toUpperCase());
-    if (codes.length === 0) {
+    const codes = new Set(extractTicketCodes(cleanCode).map((item) => item.toUpperCase()));
+    if (codes.size === 0) {
       return res.status(400).json({ success: false, error: 'Kode QR atau Nomor Registrasi tidak valid' });
     }
-    const marks = codes.map(() => '?').join(', ');
 
-    const reg = db.prepare(`
-      SELECT 
-        p.id as participant_id,
-        p.reg_number,
-        p.full_name,
-        p.role_position,
-        p.institution_name,
-        p.phone_wa,
-        p.city,
-        er.id as registration_id,
-        er.status,
-        er.qr_token,
-        er.check_in_time
-      FROM event_registrations er
-      JOIN participants p ON p.id = er.participant_id
-      WHERE UPPER(er.qr_token) IN (${marks})
-         OR UPPER(p.reg_number) IN (${marks})
-    `).get(...codes, ...codes) as any;
+    const store = data();
+    const registration = store.event_registrations.find((item) => {
+      const participant = store.participants.find((row) => row.id === item.participant_id);
+      if (!participant) return false;
+      return codes.has(item.qr_token.toUpperCase()) || codes.has(participant.reg_number.toUpperCase());
+    });
+    const participant = registration
+      ? store.participants.find((row) => row.id === registration.participant_id)
+      : undefined;
 
-    if (!reg) {
+    if (!registration || !participant) {
       return res.status(404).json({
         success: false,
         error: `Data registrasi dengan kode "${cleanCode}" tidak ditemukan dalam sistem.`
       });
     }
 
-    // Check if already checked in
-    const isAlreadyCheckedIn = reg.status === 'Hadir';
-
-    // If not checked in yet, perform check in transaction
+    const isAlreadyCheckedIn = registration.status === 'Hadir';
+    let checkInTime = registration.check_in_time;
     if (!isAlreadyCheckedIn) {
-      const now = new Date().toISOString();
-      const tx = db.transaction(() => {
-        db.prepare(`
-          UPDATE event_registrations
-          SET status = 'Hadir',
-              check_in_time = ?,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-        `).run(now, reg.registration_id);
-
-        db.prepare(`
-          INSERT INTO attendance_records (registration_id, check_in_timestamp, check_in_method, operator_name)
-          VALUES (?, ?, 'QR_SCANNER', ?)
-        `).run(reg.registration_id, now, operator_name);
-
-        db.prepare(`
-          INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-          VALUES ('CHECK_IN', 'ATTENDANCE', ?, 'qr_scanner', ?)
-        `).run(reg.reg_number, `Check-in recorded via QR Scanner by ${operator_name}`);
+      const checkedAt = new Date().toISOString();
+      checkInTime = checkedAt;
+      mutate((db) => {
+        const current = db.event_registrations.find((row) => row.id === registration.id);
+        if (!current) return;
+        current.status = 'Hadir';
+        current.check_in_time = checkedAt;
+        current.updated_at = stamp();
+        db.attendance_records.push({
+          id: nextId(db.attendance_records),
+          registration_id: current.id,
+          check_in_timestamp: checkedAt,
+          check_in_method: 'QR_SCANNER',
+          operator_name,
+          ip_address: null,
+          device_info: null,
+        });
+        pushAudit(db, 'CHECK_IN', 'ATTENDANCE', participant.reg_number, 'qr_scanner', `Check-in recorded via QR Scanner by ${operator_name}`);
       });
-      tx();
     }
 
     res.json({
       success: true,
       already_attended: isAlreadyCheckedIn,
       message: isAlreadyCheckedIn
-        ? `PERINGATAN: Peserta ${reg.full_name} telah check-in sebelumnya pada ${reg.check_in_time}`
-        : `CHECK-IN BERHASIL: Selamat datang ${reg.full_name}!`,
+        ? `PERINGATAN: Peserta ${participant.full_name} telah check-in sebelumnya pada ${registration.check_in_time}`
+        : `CHECK-IN BERHASIL: Selamat datang ${participant.full_name}!`,
       participant: {
-        reg_number: reg.reg_number,
-        full_name: reg.full_name,
-        role_position: reg.role_position,
-        institution_name: reg.institution_name,
-        city: reg.city,
-        qr_token: reg.qr_token,
+        reg_number: participant.reg_number,
+        full_name: participant.full_name,
+        role_position: participant.role_position,
+        institution_name: participant.institution_name,
+        city: participant.city,
+        qr_token: registration.qr_token,
         status: 'Hadir',
-        check_in_time: reg.check_in_time || new Date().toISOString()
+        check_in_time: checkInTime
       }
     });
   } catch (error) {
@@ -795,24 +649,18 @@ router.post('/admin/check-in', (req: Request, res: Response): any => {
   }
 });
 
-// 11. DELETE /api/admin/participants/:id - Delete with confirmation and cascade
 router.delete('/admin/participants/:id', (req: Request, res: Response): any => {
   try {
     const id = Number(req.params.id);
-    const existing = db.prepare('SELECT reg_number, full_name FROM participants WHERE id = ?').get(id) as any;
+    const existing = data().participants.find((row) => row.id === id);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Peserta tidak ditemukan' });
     }
 
-    const tx = db.transaction(() => {
-      db.prepare('DELETE FROM participants WHERE id = ?').run(id);
-      db.prepare(`
-        INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-        VALUES ('DELETE_PARTICIPANT', 'PARTICIPANT', ?, 'admin', ?)
-      `).run(existing.reg_number, `Participant ${existing.full_name} (${existing.reg_number}) deleted by admin`);
+    mutate((db) => {
+      removeParticipant(db, id);
+      pushAudit(db, 'DELETE_PARTICIPANT', 'PARTICIPANT', existing.reg_number, 'admin', `Participant ${existing.full_name} (${existing.reg_number}) deleted by admin`);
     });
-
-    tx();
 
     res.json({ success: true, message: `Peserta ${existing.full_name} (${existing.reg_number}) berhasil dihapus` });
   } catch (error) {
@@ -821,17 +669,15 @@ router.delete('/admin/participants/:id', (req: Request, res: Response): any => {
   }
 });
 
-// 12. GET /api/admin/audit-logs - Audit trail
 router.get('/admin/audit-logs', (_req: Request, res: Response) => {
   try {
-    const logs = db.prepare('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 50').all();
+    const logs = [...data().audit_logs].sort((a, b) => b.created_at.localeCompare(a.created_at));
     res.json({ success: true, logs });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Gagal memuat log audit' });
   }
 });
 
-// 13. POST /api/admin/import - Batch import participants
 router.post('/admin/import', (req: Request, res: Response): any => {
   try {
     const { participants: importData = [] } = req.body;
@@ -842,7 +688,7 @@ router.post('/admin/import', (req: Request, res: Response): any => {
     let importedCount = 0;
     const errors: string[] = [];
 
-    const importTx = db.transaction(() => {
+    mutate((db) => {
       for (let i = 0; i < importData.length; i++) {
         const item = importData[i];
         if (!item.full_name || !item.institution_name) {
@@ -852,49 +698,47 @@ router.post('/admin/import', (req: Request, res: Response): any => {
 
         const phoneCheck = normalizeIndonesianPhone(item.phone_wa || '081234567890');
         const emailCheck = validateEmail(item.email || `peserta${i}@instansi.id`);
-
-        // Check deduplication
-        const dup = db.prepare('SELECT id FROM participants WHERE phone_wa = ? OR email = ?')
-          .get(phoneCheck.normalized, emailCheck.normalized);
-        if (dup) {
+        const duplicate = db.participants.find(
+          (row) => row.phone_wa === phoneCheck.normalized || row.email === emailCheck.normalized
+        );
+        if (duplicate) {
           errors.push(`Baris ${i + 1}: ${item.full_name} sudah terdaftar sebelumnya`);
           continue;
         }
 
         const reg_number = generateNextRegNumber();
         const qr_token = `ESTRADA-2026-${reg_number}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-        const pRes = db.prepare(`
-          INSERT INTO participants (
-            reg_number, full_name, role_position, institution_name, phone_wa, email, city, pdp_consent, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(
+        const created = stamp();
+        const id = nextId(db.participants);
+        db.participants.push({
+          id,
           reg_number,
-          sanitizeText(item.full_name),
-          item.role_position || 'Direktur / Wakil Manajemen Rumah Sakit',
-          sanitizeText(item.institution_name),
-          phoneCheck.normalized,
-          emailCheck.normalized,
-          sanitizeText(item.city || 'DKI Jakarta')
-        );
-
-        const newId = Number(pRes.lastInsertRowid);
-        db.prepare(`
-          INSERT INTO event_registrations (participant_id, event_name, status, qr_token, created_at, updated_at)
-          VALUES (?, 'ESTRADA 2026', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).run(newId, item.status || 'Terdaftar', qr_token);
-
-        if (Array.isArray(item.topics)) {
-          for (const t of item.topics) {
-            db.prepare('INSERT OR IGNORE INTO participant_topics (participant_id, topic_code) VALUES (?, ?)').run(newId, t);
-          }
-        }
-
+          full_name: sanitizeText(item.full_name),
+          role_position: item.role_position || 'Direktur / Wakil Manajemen Rumah Sakit',
+          institution_name: sanitizeText(item.institution_name),
+          phone_wa: phoneCheck.normalized,
+          email: emailCheck.normalized,
+          city: sanitizeText(item.city || 'DKI Jakarta'),
+          pdp_consent: 1,
+          created_at: created,
+          updated_at: created,
+        });
+        db.event_registrations.push({
+          id: nextId(db.event_registrations),
+          participant_id: id,
+          event_name: 'ESTRADA 2026',
+          status: item.status || 'Terdaftar',
+          qr_token,
+          check_in_time: null,
+          badge_printed: 0,
+          notes: null,
+          created_at: created,
+          updated_at: created,
+        });
+        if (Array.isArray(item.topics)) linkTopics(db, id, item.topics);
         importedCount++;
       }
     });
-
-    importTx();
 
     res.json({
       success: true,
@@ -908,16 +752,15 @@ router.post('/admin/import', (req: Request, res: Response): any => {
   }
 });
 
-// 14. Master Topik Teknologi CRUD Endpoints
 router.get('/admin/topics', (_req: Request, res: Response) => {
   try {
-    const topics = db.prepare(`
-      SELECT tt.*, COUNT(pt.id) as participant_count
-      FROM technology_topics tt
-      LEFT JOIN participant_topics pt ON pt.topic_code = tt.code
-      GROUP BY tt.id
-      ORDER BY tt.code ASC
-    `).all();
+    const store = data();
+    const topics = [...store.technology_topics]
+      .sort((a, b) => a.code.localeCompare(b.code))
+      .map((topic) => ({
+        ...topic,
+        participant_count: store.participant_topics.filter((row) => row.topic_code === topic.code).length,
+      }));
     res.json({ success: true, topics });
   } catch (error) {
     console.error('Error fetching admin topics:', error);
@@ -937,25 +780,27 @@ router.post('/admin/topics', (req: Request, res: Response): any => {
     const cleanCat = sanitizeText(category || 'General');
     const cleanDesc = sanitizeText(description || '');
 
-    const existing = db.prepare('SELECT id FROM technology_topics WHERE code = ?').get(cleanCode);
-    if (existing) {
+    if (data().technology_topics.some((topic) => topic.code === cleanCode)) {
       return res.status(409).json({ success: false, error: `Kode topik "${cleanCode}" sudah digunakan` });
     }
 
-    const result = db.prepare(`
-      INSERT INTO technology_topics (code, title, category, description)
-      VALUES (?, ?, ?, ?)
-    `).run(cleanCode, cleanTitle, cleanCat, cleanDesc);
-
-    db.prepare(`
-      INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-      VALUES ('CREATE_TOPIC', 'TOPIC', ?, 'admin', ?)
-    `).run(cleanCode, `Topik [${cleanCode}] ${cleanTitle} ditambahkan ke master`);
+    const topic = mutate((db) => {
+      const created = {
+        id: nextId(db.technology_topics),
+        code: cleanCode,
+        title: cleanTitle,
+        category: cleanCat,
+        description: cleanDesc,
+      };
+      db.technology_topics.push(created);
+      pushAudit(db, 'CREATE_TOPIC', 'TOPIC', cleanCode, 'admin', `Topik [${cleanCode}] ${cleanTitle} ditambahkan ke master`);
+      return created;
+    });
 
     res.status(201).json({
       success: true,
       message: 'Topik teknologi berhasil ditambahkan',
-      topic: { id: Number(result.lastInsertRowid), code: cleanCode, title: cleanTitle, category: cleanCat, description: cleanDesc, participant_count: 0 }
+      topic: { ...topic, participant_count: 0 }
     });
   } catch (error) {
     console.error('Create topic error:', error);
@@ -967,8 +812,7 @@ router.put('/admin/topics/:id', (req: Request, res: Response): any => {
   try {
     const id = Number(req.params.id);
     const { code, title, category, description } = req.body;
-
-    const existing = db.prepare('SELECT * FROM technology_topics WHERE id = ?').get(id) as any;
+    const existing = data().technology_topics.find((topic) => topic.id === id);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Topik tidak ditemukan' });
     }
@@ -976,32 +820,25 @@ router.put('/admin/topics/:id', (req: Request, res: Response): any => {
     const cleanCode = sanitizeText(code || existing.code).toUpperCase();
     const cleanTitle = sanitizeText(title || existing.title);
     const cleanCat = sanitizeText(category || existing.category);
-    const cleanDesc = sanitizeText(description !== undefined ? description : existing.description);
+    const cleanDesc = sanitizeText(description !== undefined ? description : existing.description || '');
 
-    const tx = db.transaction(() => {
-      // If code changed, check duplicate
-      if (cleanCode !== existing.code) {
-        const dup = db.prepare('SELECT id FROM technology_topics WHERE code = ? AND id != ?').get(cleanCode, id);
-        if (dup) {
-          throw new Error(`Kode "${cleanCode}" sudah dipakai topik lain`);
-        }
-        // Update participant_topics reference
-        db.prepare('UPDATE participant_topics SET topic_code = ? WHERE topic_code = ?').run(cleanCode, existing.code);
+    mutate((db) => {
+      if (cleanCode !== existing.code && db.technology_topics.some((topic) => topic.code === cleanCode && topic.id !== id)) {
+        throw new Error(`Kode "${cleanCode}" sudah dipakai topik lain`);
       }
-
-      db.prepare(`
-        UPDATE technology_topics
-        SET code = ?, title = ?, category = ?, description = ?
-        WHERE id = ?
-      `).run(cleanCode, cleanTitle, cleanCat, cleanDesc, id);
-
-      db.prepare(`
-        INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-        VALUES ('UPDATE_TOPIC', 'TOPIC', ?, 'admin', ?)
-      `).run(cleanCode, `Topik [${cleanCode}] ${cleanTitle} diperbarui`);
+      if (cleanCode !== existing.code) {
+        for (const link of db.participant_topics) {
+          if (link.topic_code === existing.code) link.topic_code = cleanCode;
+        }
+      }
+      const topic = db.technology_topics.find((item) => item.id === id);
+      if (!topic) return;
+      topic.code = cleanCode;
+      topic.title = cleanTitle;
+      topic.category = cleanCat;
+      topic.description = cleanDesc;
+      pushAudit(db, 'UPDATE_TOPIC', 'TOPIC', cleanCode, 'admin', `Topik [${cleanCode}] ${cleanTitle} diperbarui`);
     });
-
-    tx();
 
     res.json({ success: true, message: 'Topik berhasil diperbarui' });
   } catch (error: any) {
@@ -1013,21 +850,16 @@ router.put('/admin/topics/:id', (req: Request, res: Response): any => {
 router.delete('/admin/topics/:id', (req: Request, res: Response): any => {
   try {
     const id = Number(req.params.id);
-    const existing = db.prepare('SELECT * FROM technology_topics WHERE id = ?').get(id) as any;
+    const existing = data().technology_topics.find((topic) => topic.id === id);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Topik tidak ditemukan' });
     }
 
-    const tx = db.transaction(() => {
-      db.prepare('DELETE FROM participant_topics WHERE topic_code = ?').run(existing.code);
-      db.prepare('DELETE FROM technology_topics WHERE id = ?').run(id);
-      db.prepare(`
-        INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-        VALUES ('DELETE_TOPIC', 'TOPIC', ?, 'admin', ?)
-      `).run(existing.code, `Topik [${existing.code}] ${existing.title} dihapus dari master`);
+    mutate((db) => {
+      db.participant_topics = db.participant_topics.filter((row) => row.topic_code !== existing.code);
+      db.technology_topics = db.technology_topics.filter((topic) => topic.id !== id);
+      pushAudit(db, 'DELETE_TOPIC', 'TOPIC', existing.code, 'admin', `Topik [${existing.code}] ${existing.title} dihapus dari master`);
     });
-
-    tx();
 
     res.json({ success: true, message: `Topik [${existing.code}] berhasil dihapus` });
   } catch (error) {
@@ -1036,39 +868,43 @@ router.delete('/admin/topics/:id', (req: Request, res: Response): any => {
   }
 });
 
-// 15. Master Segmentasi Minat CRUD Endpoints
 router.get('/admin/segments', (_req: Request, res: Response) => {
   try {
-    const segments = db.prepare('SELECT * FROM interest_segments ORDER BY id ASC').all() as any[];
-
-    // For each segment, find matched participants based on topic_codes
-    const result = segments.map(seg => {
-      const codes = seg.topic_codes ? seg.topic_codes.split(',').map((c: string) => c.trim().toUpperCase()) : [];
-      if (codes.length === 0) {
+    const store = data();
+    const segments = [...store.interest_segments]
+      .sort((a, b) => a.id - b.id)
+      .map((segment) => {
+        const codes = segment.topic_codes
+          ? segment.topic_codes.split(',').map((code) => code.trim().toUpperCase()).filter(Boolean)
+          : [];
+        if (codes.length === 0) {
+          return { ...segment, matched_participants_count: 0, matched_participants: [] };
+        }
+        const matchedIds = new Set(
+          store.participant_topics
+            .filter((row) => codes.includes(row.topic_code.toUpperCase()))
+            .map((row) => row.participant_id)
+        );
+        const matched = store.participants
+          .filter((participant) => matchedIds.has(participant.id))
+          .sort((a, b) => b.id - a.id)
+          .map((participant) => ({
+            id: participant.id,
+            reg_number: participant.reg_number,
+            full_name: participant.full_name,
+            institution_name: participant.institution_name,
+            role_position: participant.role_position,
+            city: participant.city,
+            phone_wa: participant.phone_wa,
+          }));
         return {
-          ...seg,
-          matched_participants_count: 0,
-          matched_participants: []
+          ...segment,
+          matched_participants_count: matched.length,
+          matched_participants: matched,
         };
-      }
+      });
 
-      const placeholders = codes.map(() => '?').join(',');
-      const matched = db.prepare(`
-        SELECT DISTINCT p.id, p.reg_number, p.full_name, p.institution_name, p.role_position, p.city, p.phone_wa
-        FROM participants p
-        JOIN participant_topics pt ON pt.participant_id = p.id
-        WHERE pt.topic_code IN (${placeholders})
-        ORDER BY p.id DESC
-      `).all(...codes) as any[];
-
-      return {
-        ...seg,
-        matched_participants_count: matched.length,
-        matched_participants: matched
-      };
-    });
-
-    res.json({ success: true, segments: result });
+    res.json({ success: true, segments });
   } catch (error) {
     console.error('Error fetching admin segments:', error);
     res.status(500).json({ success: false, error: 'Gagal memuat master segmentasi minat' });
@@ -1083,26 +919,32 @@ router.post('/admin/segments', (req: Request, res: Response): any => {
     }
 
     const cleanName = sanitizeText(name);
-    const cleanCodes = Array.isArray(topic_codes) 
-      ? topic_codes.join(',') 
+    const cleanCodes = Array.isArray(topic_codes)
+      ? topic_codes.join(',')
       : String(topic_codes).toUpperCase().replace(/\s+/g, '');
     const cleanColor = sanitizeText(color || 'sky');
     const cleanDesc = sanitizeText(description || '');
 
-    const result = db.prepare(`
-      INSERT INTO interest_segments (name, color, topic_codes, description)
-      VALUES (?, ?, ?, ?)
-    `).run(cleanName, cleanColor, cleanCodes, cleanDesc);
-
-    db.prepare(`
-      INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-      VALUES ('CREATE_SEGMENT', 'SEGMENT', ?, 'admin', ?)
-    `).run(String(result.lastInsertRowid), `Segmentasi "${cleanName}" (${cleanCodes}) ditambahkan`);
+    const segmentId = mutate((db) => {
+      const created = stamp();
+      const id = nextId(db.interest_segments);
+      db.interest_segments.push({
+        id,
+        name: cleanName,
+        color: cleanColor,
+        topic_codes: cleanCodes,
+        description: cleanDesc,
+        created_at: created,
+        updated_at: created,
+      });
+      pushAudit(db, 'CREATE_SEGMENT', 'SEGMENT', String(id), 'admin', `Segmentasi "${cleanName}" (${cleanCodes}) ditambahkan`);
+      return id;
+    });
 
     res.status(201).json({
       success: true,
       message: 'Segmentasi minat berhasil ditambahkan',
-      segmentId: Number(result.lastInsertRowid)
+      segmentId
     });
   } catch (error) {
     console.error('Create segment error:', error);
@@ -1114,29 +956,28 @@ router.put('/admin/segments/:id', (req: Request, res: Response): any => {
   try {
     const id = Number(req.params.id);
     const { name, color, topic_codes, description } = req.body;
-
-    const existing = db.prepare('SELECT * FROM interest_segments WHERE id = ?').get(id) as any;
+    const existing = data().interest_segments.find((segment) => segment.id === id);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Segmentasi tidak ditemukan' });
     }
 
     const cleanName = sanitizeText(name || existing.name);
-    const cleanCodes = topic_codes !== undefined 
+    const cleanCodes = topic_codes !== undefined
       ? (Array.isArray(topic_codes) ? topic_codes.join(',') : String(topic_codes).toUpperCase().replace(/\s+/g, ''))
       : existing.topic_codes;
     const cleanColor = sanitizeText(color || existing.color);
-    const cleanDesc = sanitizeText(description !== undefined ? description : existing.description);
+    const cleanDesc = sanitizeText(description !== undefined ? description : existing.description || '');
 
-    db.prepare(`
-      UPDATE interest_segments
-      SET name = ?, color = ?, topic_codes = ?, description = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(cleanName, cleanColor, cleanCodes, cleanDesc, id);
-
-    db.prepare(`
-      INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-      VALUES ('UPDATE_SEGMENT', 'SEGMENT', ?, 'admin', ?)
-    `).run(String(id), `Segmentasi "${cleanName}" (${cleanCodes}) diperbarui`);
+    mutate((db) => {
+      const segment = db.interest_segments.find((item) => item.id === id);
+      if (!segment) return;
+      segment.name = cleanName;
+      segment.color = cleanColor;
+      segment.topic_codes = cleanCodes;
+      segment.description = cleanDesc;
+      segment.updated_at = stamp();
+      pushAudit(db, 'UPDATE_SEGMENT', 'SEGMENT', String(id), 'admin', `Segmentasi "${cleanName}" (${cleanCodes}) diperbarui`);
+    });
 
     res.json({ success: true, message: 'Segmentasi minat berhasil diperbarui' });
   } catch (error) {
@@ -1148,17 +989,15 @@ router.put('/admin/segments/:id', (req: Request, res: Response): any => {
 router.delete('/admin/segments/:id', (req: Request, res: Response): any => {
   try {
     const id = Number(req.params.id);
-    const existing = db.prepare('SELECT * FROM interest_segments WHERE id = ?').get(id) as any;
+    const existing = data().interest_segments.find((segment) => segment.id === id);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Segmentasi tidak ditemukan' });
     }
 
-    db.prepare('DELETE FROM interest_segments WHERE id = ?').run(id);
-
-    db.prepare(`
-      INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-      VALUES ('DELETE_SEGMENT', 'SEGMENT', ?, 'admin', ?)
-    `).run(String(id), `Segmentasi "${existing.name}" dihapus dari master`);
+    mutate((db) => {
+      db.interest_segments = db.interest_segments.filter((segment) => segment.id !== id);
+      pushAudit(db, 'DELETE_SEGMENT', 'SEGMENT', String(id), 'admin', `Segmentasi "${existing.name}" dihapus dari master`);
+    });
 
     res.json({ success: true, message: `Segmentasi "${existing.name}" berhasil dihapus` });
   } catch (error) {
@@ -1175,10 +1014,9 @@ router.post('/admin/brand', (req: Request, res: Response): any => {
   try {
     const { kind, data_url } = req.body || {};
     const brand = saveBrand(String(kind || ''), String(data_url || ''));
-    db.prepare(`
-      INSERT INTO audit_logs (action, entity_type, entity_id, user_id, details)
-      VALUES ('UPDATE_BRAND', 'SETTINGS', ?, 'admin', ?)
-    `).run(String(kind), kind === 'icon' ? 'Ikon diganti' : 'Gambar diganti');
+    mutate((db) => {
+      pushAudit(db, 'UPDATE_BRAND', 'SETTINGS', String(kind), 'admin', kind === 'icon' ? 'Ikon diganti' : 'Gambar diganti');
+    });
     res.json({ success: true, ...brand });
   } catch (error: any) {
     res.status(400).json({ success: false, error: error.message || 'Gagal menyimpan gambar.' });

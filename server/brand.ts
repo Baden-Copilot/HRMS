@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { db } from './db.ts';
+import { data, mutate, stamp } from './db.ts';
 
 const brandDir = path.resolve(process.cwd(), 'data', 'brand');
 const kinds = ['icon', 'image'] as const;
@@ -18,9 +18,7 @@ function isKind(value: string): value is BrandKind {
 }
 
 function row(kind: BrandKind) {
-  return db.prepare('SELECT value, updated_at FROM app_settings WHERE key = ?').get(kind) as
-    | { value: string; updated_at: string }
-    | undefined;
+  return data().app_settings.find((item) => item.key === kind);
 }
 
 function filePath(filename: string) {
@@ -73,11 +71,16 @@ export function saveBrand(kind: string, dataUrl: string) {
   clearFiles(kind);
   const filename = `${kind}.${ext}`;
   fs.writeFileSync(path.join(brandDir, filename), buffer);
-  db.prepare(`
-    INSERT INTO app_settings (key, value, updated_at)
-    VALUES (?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-  `).run(kind, filename);
+  mutate((store) => {
+    const saved = store.app_settings.find((item) => item.key === kind);
+    const updated_at = stamp();
+    if (saved) {
+      saved.value = filename;
+      saved.updated_at = updated_at;
+    } else {
+      store.app_settings.push({ key: kind, value: filename, updated_at });
+    }
+  });
 
   return publicBrand();
 }
@@ -85,7 +88,9 @@ export function saveBrand(kind: string, dataUrl: string) {
 export function clearBrand(kind: string) {
   if (!isKind(kind)) throw new Error('Jenis berkas tidak dikenal.');
   clearFiles(kind);
-  db.prepare('DELETE FROM app_settings WHERE key = ?').run(kind);
+  mutate((store) => {
+    store.app_settings = store.app_settings.filter((item) => item.key !== kind);
+  });
   return publicBrand();
 }
 
