@@ -95,8 +95,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
   // Auth state
   const brand = useBrand();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [adminUsername, setAdminUsername] = useState('admin');
-  const [adminPassword, setAdminPassword] = useState('estrada2026');
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -436,6 +436,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
               <input
                 type="text"
                 required
+                autoComplete="off"
                 value={adminUsername}
                 onChange={e => setAdminUsername(e.target.value)}
                 className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:border-[#4A3B73]"
@@ -447,6 +448,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
               <input
                 type="password"
                 required
+                autoComplete="off"
                 value={adminPassword}
                 onChange={e => setAdminPassword(e.target.value)}
                 className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:border-[#4A3B73]"
