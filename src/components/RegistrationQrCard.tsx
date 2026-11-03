@@ -168,7 +168,7 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, width, height);
 
-      ctx.fillStyle = '#102C45';
+      ctx.fillStyle = '#0A1B49';
       ctx.fillRect(0, 0, width, headerH);
       ctx.save();
       ctx.beginPath();
@@ -179,7 +179,7 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
       if (logoImg) ctx.drawImage(logoImg, 32, 20, 72, 72);
       ctx.restore();
       if (!logoImg) {
-        ctx.fillStyle = '#102C45';
+        ctx.fillStyle = '#0A1B49';
         ctx.font = '800 34px "Plus Jakarta Sans", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -225,7 +225,7 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
       y += 28;
       ctx.drawImage(qrImg, (width - qrSize) / 2, y, qrSize, qrSize);
       y += qrSize + 28;
-      ctx.fillStyle = '#102C45';
+      ctx.fillStyle = '#0A1B49';
       ctx.font = '500 22px "Plus Jakarta Sans", sans-serif';
       for (const line of urlLines) {
         ctx.fillText(line, width / 2, y);
@@ -300,13 +300,13 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
       justify-content: space-between;
       gap: 0.75rem;
       padding: 1rem 1.15rem;
-      background: #102C45;
+      background: #0A1B49;
       color: #fff;
     }
     .brand { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
     .mark {
       width: 2.4rem; height: 2.4rem; flex: none;
-      border-radius: 0.7rem; background: #fff; color: #102C45;
+      border-radius: 0.7rem; background: #fff; color: #0A1B49;
       display: flex; align-items: center; justify-content: center;
       font-weight: 800; object-fit: cover;
     }
@@ -332,7 +332,7 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
       text-align: center;
       font-family: ui-monospace, Consolas, monospace;
       font-size: 0.72rem;
-      color: #102C45;
+      color: #0A1B49;
       word-break: break-all;
     }
     footer { padding: 0.35rem 1.15rem 1.15rem; }
@@ -397,7 +397,7 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
 
   return (
     <div className="bg-white rounded-2xl shadow-xs border border-slate-200/70 overflow-hidden">
-      <header className="bg-[#102C45] text-white p-5 relative">
+      <header className="bg-[#0A1B49] text-white p-5 relative">
         {onClose && (
           <button
             type="button"
@@ -409,7 +409,7 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
           </button>
         )}
         <div className="flex items-center gap-3 pr-8">
-          <div className="w-11 h-11 bg-white rounded-xl overflow-hidden flex items-center justify-center text-[#102C45] shrink-0">
+          <div className="w-11 h-11 bg-white rounded-xl overflow-hidden flex items-center justify-center text-[#0A1B49] shrink-0">
             {brand.icon_url ? (
               <img src={brand.icon_url} alt="Logo Estrada" className="w-full h-full object-cover" />
             ) : (
@@ -473,7 +473,7 @@ export const RegistrationQrCard: React.FC<RegistrationQrCardProps> = ({ onClose 
           type="button"
           onClick={copyLink}
           disabled={!valid}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#102C45] text-white text-[11px] font-bold disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#0A1B49] text-white text-[11px] font-bold disabled:opacity-40"
         >
           {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
           {copied ? 'Tersalin' : 'Salin tautan'}

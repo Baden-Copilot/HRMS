@@ -167,9 +167,9 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onSuccess })
 
   return (
     <div id="registration-form-section" className="w-full min-w-0">
-      <header className="bg-[#102C45] text-white rounded-2xl p-5 sm:p-8 shadow-lg">
+      <header className="bg-[#0A1B49] text-white rounded-2xl p-5 sm:p-8 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 bg-white rounded-xl overflow-hidden flex items-center justify-center text-[#102C45] shrink-0">
+          <div className="w-11 h-11 bg-white rounded-xl overflow-hidden flex items-center justify-center text-[#0A1B49] shrink-0">
             {brand.icon_url ? (
               <img src={brand.icon_url} alt="" className="w-full h-full object-cover" />
             ) : (
@@ -383,7 +383,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onSuccess })
         {step === 1 ? (
           <button
             type="submit"
-            className="w-full min-h-[54px] rounded-xl bg-[#102C45] hover:bg-[#193F60] active:scale-[0.99] text-white font-bold text-sm tracking-wide transition"
+            className="w-full min-h-[54px] rounded-xl bg-[#0A1B49] hover:bg-[#16356F] active:scale-[0.99] text-white font-bold text-sm tracking-wide transition"
           >
             LANJUT →
           </button>
@@ -399,7 +399,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({ onSuccess })
             <button
               type="submit"
               disabled={submitting}
-              className="w-full min-h-[54px] rounded-xl bg-[#102C45] hover:bg-[#193F60] active:scale-[0.99] text-white font-bold text-sm tracking-wide transition disabled:opacity-50"
+              className="w-full min-h-[54px] rounded-xl bg-[#0A1B49] hover:bg-[#16356F] active:scale-[0.99] text-white font-bold text-sm tracking-wide transition disabled:opacity-50"
             >
               {submitting ? 'MENGIRIM...' : 'DAFTAR SEKARANG →'}
             </button>

@@ -211,13 +211,13 @@ function pageShell(title: string, body: string) {
       justify-content: space-between;
       gap: 0.75rem;
       padding: 1rem 1.15rem;
-      background: #102C45;
+      background: #0A1B49;
       color: #fff;
     }
     .brand { display: flex; align-items: center; gap: 0.7rem; min-width: 0; }
     .mark {
       width: 2.4rem; height: 2.4rem; flex: none;
-      border-radius: 0.7rem; background: #fff; color: #102C45;
+      border-radius: 0.7rem; background: #fff; color: #0A1B49;
       display: flex; align-items: center; justify-content: center;
       font-weight: 800; object-fit: cover;
     }
@@ -236,7 +236,7 @@ function pageShell(title: string, body: string) {
     .identity { padding: 1.15rem 1.15rem 0.35rem; }
     .kicker { margin: 0; color: #64748b; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
     h1 { margin: 0.3rem 0 0; font-size: 1.55rem; line-height: 1.25; overflow-wrap: anywhere; }
-    .reg { margin: 0.85rem 0 0; display: grid; gap: 0.15rem; font-family: ui-monospace, Consolas, monospace; font-size: 0.95rem; font-weight: 700; color: #102C45; }
+    .reg { margin: 0.85rem 0 0; display: grid; gap: 0.15rem; font-family: ui-monospace, Consolas, monospace; font-size: 0.95rem; font-weight: 700; color: #0A1B49; }
     .reg span { color: #64748b; font-family: "Plus Jakarta Sans", system-ui, sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
     .cut { position: relative; height: 1.35rem; }
     .cut span {

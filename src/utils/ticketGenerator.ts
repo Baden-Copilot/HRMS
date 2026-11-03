@@ -46,11 +46,11 @@ export async function downloadPdfTicket(participant: Participant) {
   const pageWidth = doc.internal.pageSize.getWidth();
 
   // Header background bar (Deep Navy)
-  doc.setFillColor(15, 23, 42); // #0f172a
+  doc.setFillColor(10, 27, 73); // #0A1B49
   doc.rect(0, 0, pageWidth, 42, 'F');
 
-  // Accent line (Medical Cyan)
-  doc.setFillColor(14, 165, 233); // #0ea5e9
+  // Accent line from the Estrada logo
+  doc.setFillColor(112, 144, 248); // #7090F8
   doc.rect(0, 42, pageWidth, 2.5, 'F');
 
   // Header Title

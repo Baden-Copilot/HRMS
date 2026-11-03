@@ -66,7 +66,7 @@ export const RegistrationSuccessModal: React.FC<RegistrationSuccessModalProps> =
       <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-6">
         
         {/* Header Ringkas */}
-        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+        <div className="bg-[#0A1B49] text-white px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
             <div>

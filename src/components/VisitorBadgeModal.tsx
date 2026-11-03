@@ -41,7 +41,7 @@ export const VisitorBadgeModal: React.FC<VisitorBadgeModalProps> = ({ participan
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto print:p-0 print:bg-white">
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-4 print:shadow-none print:border-none print:w-full print:max-w-none">
         {/* Modal Controls (hidden on print) */}
-        <div className="bg-slate-900 text-white p-4 flex items-center justify-between print:hidden">
+        <div className="bg-[#0A1B49] text-white p-4 flex items-center justify-between print:hidden">
           <div className="flex items-center gap-2 text-xs font-semibold text-sky-400">
             <UserCheck className="w-4 h-4" />
             <span>KARTU IDENTITAS PESERTA (ID BADGE)</span>
@@ -76,14 +76,14 @@ export const VisitorBadgeModal: React.FC<VisitorBadgeModalProps> = ({ participan
             </div>
 
             {/* Top Brand Banner */}
-            <div className="bg-slate-900 text-white px-5 py-4 text-center relative">
+            <div className="bg-[#0A1B49] text-white px-5 py-4 text-center relative">
               <div className="text-[10px] tracking-widest text-sky-400 font-bold uppercase">
                 HEALTHCARE TECHNOLOGY SUMMIT 2026
               </div>
               <h1 className="text-2xl font-black tracking-tight text-white mt-0.5">
                 ESTRADA
               </h1>
-              <div className="h-0.5 w-12 bg-sky-500 mx-auto mt-1.5"></div>
+              <div className="h-0.5 w-12 bg-[#7090F8] mx-auto mt-1.5"></div>
             </div>
 
             {/* Participant Category Pill */}
@@ -134,7 +134,7 @@ export const VisitorBadgeModal: React.FC<VisitorBadgeModalProps> = ({ participan
             </div>
 
             {/* Badge Footer */}
-            <div className="px-5 py-2.5 bg-slate-900 text-white text-center text-[10px]">
+            <div className="px-5 py-2.5 bg-[#0A1B49] text-white text-center text-[10px]">
               {event && <span className="text-slate-300">{formatEventLine(event)}</span>}
             </div>
           </div>

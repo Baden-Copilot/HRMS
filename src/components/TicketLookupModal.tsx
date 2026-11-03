@@ -59,7 +59,7 @@ export const TicketLookupModal: React.FC<TicketLookupModalProps> = ({ onClose, o
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
       <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-8">
-        <div className="bg-slate-900 text-white p-6 relative">
+        <div className="bg-[#0A1B49] text-white p-6 relative">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10"

@@ -415,10 +415,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
   // Login View styled in purple canvas
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#221940] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#061433] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-8 space-y-6 border border-purple-900/20">
           <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-2xl bg-[#4A3B73] text-white flex items-center justify-center font-black text-xl mx-auto shadow-md">
+            <div className="w-14 h-14 rounded-2xl bg-[#0A1B49] text-white flex items-center justify-center font-black text-xl mx-auto shadow-md">
               E
             </div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">Admin Estrada 2026</h2>
@@ -458,7 +458,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
 
             <button
               type="submit"
-              className="w-full py-3 px-4 bg-[#4A3B73] hover:bg-[#3D2E62] text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-[0.99]"
+              className="w-full py-3 px-4 bg-[#0A1B49] hover:bg-[#16356F] text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-[0.99]"
             >
               Masuk ke Console
             </button>
@@ -520,12 +520,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
   ];
 
   return (
-    <div className="bg-[#20183F] min-h-screen p-2 sm:p-5 flex items-center justify-center font-sans">
+    <div className="bg-[#061433] min-h-screen p-2 sm:p-5 flex items-center justify-center font-sans">
       {/* MAIN APPLICATION WINDOW WITH ROUNDED-3XL BORDER (AS IN MOCKUP) */}
       <div className="w-full max-w-[1540px] bg-[#F4F5FA] rounded-[32px] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-purple-900/30 min-h-[92vh]">
         
         {/* LEFT SIDEBAR NAVIGATION (PURPLE BACKDROP WITH ACTIVE SEAMLESS PILL & BOTANICAL ILLUSTRATION) */}
-        <aside className={`${sidebarOpen ? 'flex' : 'hidden'} w-full md:w-64 bg-[#4A3B73] text-white flex-col justify-between shrink-0 relative overflow-hidden`}>
+        <aside className={`${sidebarOpen ? 'flex' : 'hidden'} w-full md:w-64 bg-[#0A1B49] text-white flex-col justify-between shrink-0 relative overflow-hidden`}>
           {/* Top Branding Section */}
           <div className="relative z-10 p-5 space-y-6">
             <div className="text-center pt-2 relative">
@@ -534,11 +534,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                 onClick={() => setSidebarOpen(false)}
                 title="Sembunyikan menu"
                 aria-label="Sembunyikan menu"
-                className="absolute right-0 top-0 p-1.5 rounded-lg text-purple-200 hover:bg-white/10 hover:text-white"
+                className="absolute right-0 top-0 p-1.5 rounded-lg text-blue-200 hover:bg-white/10 hover:text-white"
               >
                 <PanelLeftClose className="w-4 h-4" />
               </button>
-              <div className="w-12 h-12 rounded-full bg-white text-[#4A3B73] overflow-hidden flex items-center justify-center font-black text-xl mx-auto shadow-lg">
+              <div className="w-12 h-12 rounded-full bg-white text-[#0A1B49] overflow-hidden flex items-center justify-center font-black text-xl mx-auto shadow-lg">
                 {brand.icon_url ? (
                   <img src={brand.icon_url} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -546,7 +546,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                 )}
               </div>
               <h2 className="text-base font-extrabold text-white tracking-wide mt-3">ESTRADA</h2>
-              <p className="text-[10px] text-purple-200/80 font-medium uppercase tracking-widest">Healthcare 2026</p>
+              <p className="text-[10px] text-blue-200/80 font-medium uppercase tracking-widest">Healthcare 2026</p>
             </div>
 
             {/* Navigation Menu */}
@@ -560,17 +560,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
                     onClick={() => setActiveTab(item.id)}
                     className={`w-full flex items-center justify-between py-3 px-4 text-xs font-bold transition-all relative ${
                       isActive
-                        ? 'bg-[#F4F5FA] text-[#4A3B73] rounded-l-2xl shadow-sm -mr-5 pr-9 font-extrabold'
-                        : 'text-purple-200 hover:text-white hover:bg-white/10 rounded-xl'
+                        ? 'bg-[#F4F5FA] text-[#0A1B49] rounded-l-2xl shadow-sm -mr-5 pr-9 font-extrabold'
+                        : 'text-blue-200 hover:text-white hover:bg-white/10 rounded-xl'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-[#4A3B73]' : 'text-purple-300'}`} />
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-[#0A1B49]' : 'text-blue-300'}`} />
                       <span>{item.label}</span>
                     </div>
                     {item.badge !== undefined && (
                       <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
-                        isActive ? 'bg-[#4A3B73] text-white' : 'bg-purple-900/60 text-purple-200'
+                        isActive ? 'bg-[#0A1B49] text-white' : 'bg-[#061433]/60 text-blue-200'
                       }`}>
                         {item.badge}
                       </span>
@@ -588,7 +588,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
               <div className="flex items-center justify-between">
                 <div className="truncate">
                   <p className="text-xs font-bold text-white truncate">{currentUser?.full_name || 'Admin Desk'}</p>
-                  <p className="text-[10px] text-purple-200/70 uppercase">Administrator</p>
+                  <p className="text-[10px] text-blue-200/70 uppercase">Administrator</p>
                 </div>
                 <button
                   onClick={handleLogout}
@@ -622,7 +622,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenBadge, onE
           <div className="absolute bottom-0 left-0 right-0 pointer-events-none overflow-hidden h-48 select-none">
             <svg viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full object-cover">
               {/* Soft purple gradient backing */}
-              <circle cx="120" cy="180" r="110" fill="#382C5E" />
+              <circle cx="120" cy="180" r="110" fill="#061433" />
               {/* Teal monstera / palm leaf */}
               <path d="M-30,180 C0,90 60,80 110,120 C130,140 135,180 135,180 Z" fill="#2DD4BF" opacity="0.35" />
               {/* Sky blue secondary leaf */}
